@@ -8,6 +8,13 @@ dependencies = [
   "pydualsense",
 ]
 
+[project.optional-dependencies]
+live-audio = [
+  "numpy>=1.26,<2",
+  "soundcard>=0.4.3",
+  "imageio-ffmpeg>=0.6.0",
+]
+
 [project.scripts]
 vibe = "vibe_haptic_designer.interfaces.cli.main:main"
 

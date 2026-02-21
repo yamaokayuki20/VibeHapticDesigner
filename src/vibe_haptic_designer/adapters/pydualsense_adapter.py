@@ -31,6 +31,9 @@ class PyDualSenseAdapter(ControllerPort):
     def disconnect(self) -> None:
         if self._connected:
             self.stop_vibration()
+            close = getattr(self._controller, "close", None)
+            if callable(close):
+                close()
             self._connected = False
 
     def set_vibration(self, left_motor: int, right_motor: int) -> None:
