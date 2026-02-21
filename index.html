@@ -1,236 +1,700 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-  <meta charset="UTF-8">
-  <title>触覚・音響デザインツール (Perlin Haptics POC)</title>
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #fff; padding: 20px; max-width: 600px; margin: 0 auto; }
-    h1 { font-size: 1.5rem; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; }
-    .control-group { margin-bottom: 15px; background: #2a2a2a; padding: 15px; border-radius: 8px; }
-    label { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem;}
-    input[type="range"] { width: 100%; cursor: pointer; }
-    .buttons { display: flex; gap: 10px; margin-top: 20px; }
-    button { flex: 1; padding: 15px; font-size: 1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.2s; }
-    #playBtn { background: #4CAF50; color: white; }
-    #playBtn.playing { background: #f44336; }
-    #recordBtn { background: #2196F3; color: white; }
-    #recordBtn.recording { background: #ff9800; animation: pulse 1s infinite; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-  </style>
+    <meta charset="UTF-8">
+    <title>Interactive HD Haptics POC</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #121212;
+            color: #f0f0f0;
+            padding: 20px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            text-align: center;
+            border-bottom: 2px solid #00439c;
+            padding-bottom: 10px;
+            color: #fff;
+        }
+
+        /* インタラクティブパッドのスタイル */
+        #touchPad {
+            width: 100%;
+            height: 200px;
+            background: #1a1a1a;
+            border: 2px dashed #444;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+        }
+
+        #puck {
+            width: 80px;
+            height: 80px;
+            background: #0070cc;
+            border-radius: 50%;
+            position: absolute;
+            top: 60px;
+            left: calc(50% - 40px);
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        #puck:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+            background: #ff5722;
+        }
+
+        #puck.collision {
+            box-shadow: 0 0 25px rgba(255, 87, 34, 0.9), 0 0 50px rgba(255, 152, 0, 0.5);
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #66b2ff;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #0070cc;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        #playBtn {
+            background: #0070cc;
+            color: white;
+        }
+
+        #playBtn.playing {
+            background: #e53935;
+        }
+
+        #recordBtn {
+            background: #555;
+            color: white;
+        }
+
+        #recordBtn.recording {
+            background: #ff9800;
+            animation: pulse 1s infinite;
+            color: black;
+        }
+
+        .desc {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-top: 5px;
+            line-height: 1.3;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* AI生成パネル */
+        .ai-panel {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #0070cc;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 112, 204, 0.15);
+        }
+
+        .ai-panel h2 {
+            font-size: 1rem;
+            color: #66b2ff;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-panel input[type="password"],
+        .ai-panel input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #1a1a1a;
+            color: #f0f0f0;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        .ai-panel input:focus {
+            outline: none;
+            border-color: #0070cc;
+            box-shadow: 0 0 0 2px rgba(0, 112, 204, 0.25);
+        }
+
+        #generateBtn {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #0070cc, #00439c);
+            color: white;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #generateBtn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0088ff, #0060dd);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 112, 204, 0.4);
+        }
+
+        #generateBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #aiStatus {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            min-height: 1.2em;
+            transition: color 0.3s;
+        }
+
+        #aiStatus.loading {
+            color: #ff9800;
+        }
+
+        #aiStatus.success {
+            color: #4caf50;
+        }
+
+        #aiStatus.error {
+            color: #e53935;
+        }
+    </style>
 </head>
+
 <body>
 
-  <h1>Haptic/Audio Generator POC</h1>
+    <h1>インタラクティブ 触覚デザインツール</h1>
 
-  <div class="control-group">
-    <label><span>すべすべ (0)</span> <span>ザラザラ (1)</span></label>
-    <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.5">
-  </div>
-  
-  <div class="control-group">
-    <label><span>固体 (0)</span> <span>液体 (1)</span></label>
-    <input type="range" id="state" min="0" max="1" step="0.01" value="0.5">
-  </div>
+    <div class="ai-panel">
+        <h2>🤖 AI 質感ジェネレーター</h2>
+        <input type="password" id="apiKey" placeholder="Gemini API Key を入力">
+        <input type="text" id="aiPrompt" placeholder="例: ザラザラしたアスファルト, 氷の上を滑る感覚">
+        <button id="generateBtn">AIで質感を生成</button>
+        <div id="aiStatus"></div>
+    </div>
 
-  <div class="control-group">
-    <label><span>硬い (0)</span> <span>柔らかい (1)</span></label>
-    <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.5">
-  </div>
+    <div id="touchPad">
+        <div id="puck">Drag Me!</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>重い (0)</span> <span>軽い (1)</span></label>
-    <input type="range" id="weight" min="0" max="1" step="0.01" value="0.5">
-  </div>
+    <div class="control-group">
+        <label><span>粒感 (滑らか 0)</span> <span>粒感 (ツブツブ 1)</span></label>
+        <input type="range" id="granularity" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">VCA特有の鋭いインパルス（衝撃）。波形の頂点を針のように鋭くし、砂や小石のような独立した粒の感覚を作ります。</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
-    <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.5">
-  </div>
+    <div class="control-group">
+        <label><span>すべすべ (0)</span> <span>ザラザラ (1)</span></label>
+        <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.2">
+        <div class="desc">fBmによる微細な高周波ノイズの付加。ガラスのような滑らかさから、ヤスリのような質感まで。</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>速度 (遅い 0)</span> <span>速度 (速い 1)</span></label>
-    <input type="range" id="velocity" min="0" max="1" step="0.01" value="0.5">
-  </div>
+    <div class="control-group">
+        <label><span>液体 (0)</span> <span>固体 (1)</span></label>
+        <input type="range" id="state" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">連続的か、断続的か。固体に近づくと波形がビットクラッシュ（階段状）になり、ゴリゴリとした摩擦を生みます。</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>加速度 (減速 0)</span> <span>加速度 (加速 1)</span></label>
-    <input type="range" id="acceleration" min="0" max="1" step="0.01" value="0.5">
-  </div>
+    <div class="control-group">
+        <label><span>柔らかい (0)</span> <span>硬い (1)</span></label>
+        <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">衝撃の硬さ。ウェーブフォルダーによる波の「折り返し」で、金属的なカンッという硬い感触を加えます。</div>
+    </div>
 
-  <div class="buttons">
-    <button id="playBtn">Play / 再生</button>
-    <button id="recordBtn" disabled>Record (WAV) / 録音開始</button>
-  </div>
+    <div class="control-group">
+        <label><span>重い (0)</span> <span>軽い (1)</span></label>
+        <input type="range" id="weight" min="0" max="1" step="0.01" value="0.5">
+        <div class="desc">ベース周波数。重い＝20Hz付近のズンッとした重低音振動、軽い＝150Hz付近のチリチリした軽い振動。</div>
+    </div>
 
-  <script>
-    let audioCtx;
-    let noiseSource, lfo, gainNode, filter, lowShelf;
-    let isPlaying = false;
-    let mediaRecorder, chunks = [];
+    <div class="control-group">
+        <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
+        <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">引きずり抵抗。泥やスライムをかき混ぜるような抵抗感をシミュレート。</div>
+    </div>
 
-    // ノイズバッファの生成（簡易的なホワイトノイズから構築）
-    function createNoiseBuffer(ctx) {
-      const bufferSize = ctx.sampleRate * 2; // 2秒ループ
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-      }
-      return buffer;
-    }
+    <div class="buttons">
+        <button id="playBtn">Play / エンジン起動</button>
+        <button id="recordBtn" disabled>Record / 録音 (WAV)</button>
+    </div>
 
-    function initAudio() {
-      if (audioCtx) return;
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      
-      // 録音用のノード
-      const dest = audioCtx.createMediaStreamDestination();
-      mediaRecorder = new MediaRecorder(dest.stream);
-      
-      mediaRecorder.ondataavailable = e => chunks.push(e.data);
-      mediaRecorder.onstop = e => {
-        const blob = new Blob(chunks, { 'type' : 'audio/wav' }); // ブラウザによってはwebmになります
-        chunks = [];
-        const audioURL = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = audioURL;
-        a.download = 'haptic_audio.wav';
-        document.body.appendChild(a);
-        a.click();
-      };
-      
-      document.getElementById('recordBtn').disabled = false;
+    <script>
+        // --- ドラッグ操作と物理演算のロジック ---
+        const puck = document.getElementById('puck');
+        const touchPad = document.getElementById('touchPad');
+        let isDragging = false;
+        let lastX = 0, lastY = 0, lastTime = 0;
 
-      // マスターゲイン
-      gainNode = audioCtx.createGain();
-      gainNode.gain.value = 0;
-      
-      // フィルタリング
-      filter = audioCtx.createBiquadFilter();
-      filter.type = 'lowpass';
-      
-      lowShelf = audioCtx.createBiquadFilter();
-      lowShelf.type = 'lowshelf';
-      lowShelf.frequency.value = 150;
+        // 音声エンジンに渡すための動的パラメータ
+        let rawVelocity = 0;
+        let smoothedVelocity = 0;
 
-      // 接続
-      filter.connect(lowShelf);
-      lowShelf.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      gainNode.connect(dest); // 録音用にも分岐
+        // --- 衝突検出用パラメータ ---
+        let prevVelocity = 0;           // 前フレームの速度
+        let impulseEnvelope = 0;        // インパルス応答のエンベロープ（0.0〜1.0）
+        let impulseIntensity = 0;       // 衝突の強度（エンベロープ初期値）
+        let impulsePhase = 0;           // インパルス波形用の独立位相
+        const COLLISION_ACCEL_THRESHOLD = 0.8;  // 加速度（減速）の閾値
+        const IMPULSE_DECAY_RATE = 0.92;        // エンベロープ減衰係数（1フレームごと）
+        let collisionFlashTimer = 0;
 
-      updateParams();
-    }
+        function triggerCollision(intensity) {
+            // 衝突強度を0.0〜1.0にクランプ
+            impulseIntensity = Math.min(intensity, 1.0);
+            impulseEnvelope = impulseIntensity;
+            impulsePhase = 0; // 衝突時点から位相リセット
 
-    function startSound() {
-      noiseSource = audioCtx.createBufferSource();
-      noiseSource.buffer = createNoiseBuffer(audioCtx);
-      noiseSource.loop = true;
+            // 視覚フィードバック
+            puck.classList.add('collision');
+            clearTimeout(collisionFlashTimer);
+            collisionFlashTimer = setTimeout(() => puck.classList.remove('collision'), 150);
+        }
 
-      lfo = audioCtx.createOscillator();
-      const lfoGain = audioCtx.createGain();
-      
-      lfo.connect(lfoGain);
-      lfoGain.connect(gainNode.gain);
+        function startDrag(clientX, clientY) {
+            isDragging = true;
+            lastX = clientX;
+            lastY = clientY;
+            lastTime = performance.now();
+            prevVelocity = 0;
+        }
 
-      noiseSource.connect(filter);
-      
-      noiseSource.start();
-      lfo.start();
-      
-      // 滑らかなフェードイン
-      gainNode.gain.setTargetAtTime(0.5, audioCtx.currentTime, 0.1);
-      
-      // パラメータをLFO等に適用
-      window.lfoRef = lfo;
-      window.lfoGainRef = lfoGain;
-      updateParams();
-    }
+        function moveDrag(clientX, clientY) {
+            if (!isDragging) return;
 
-    function stopSound() {
-      gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-      setTimeout(() => {
-        if(noiseSource) noiseSource.stop();
-        if(lfo) lfo.stop();
-      }, 200);
-    }
+            const now = performance.now();
+            const dt = now - lastTime;
 
-    function updateParams() {
-      if (!audioCtx) return;
+            if (dt > 0) {
+                const dx = clientX - lastX;
+                const dy = clientY - lastY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                rawVelocity = Math.min((dist / dt) * 1.5, 5.0);
+            }
 
-      const val = id => parseFloat(document.getElementById(id).value);
-      
-      const roughness = val('roughness');
-      const state = val('state');
-      const hardness = val('hardness');
-      const weight = val('weight');
-      const viscosity = val('viscosity');
-      const velocity = val('velocity');
-      const accel = val('acceleration');
+            lastX = clientX;
+            lastY = clientY;
+            lastTime = now;
 
-      // ザラザラ度：ローパスフィルタのカットオフ
-      filter.frequency.value = 200 + (roughness * 5000);
-      
-      // 硬さ：フィルタのレゾナンス（Q値）
-      filter.Q.value = (1 - hardness) * 10;
+            // 見た目のオブジェクトをカーソルに追従させる
+            const rect = touchPad.getBoundingClientRect();
+            let px = clientX - rect.left - 40;
+            let py = clientY - rect.top - 40;
 
-      // 重さ：Lowshelfのゲイン（低音強調）
-      lowShelf.gain.value = (1 - weight) * 15; // 0=重い=低音ブースト, 1=軽い
+            // 境界衝突検出：クランプ前の座標を保持
+            const rawPx = px;
+            const rawPy = py;
+            px = Math.max(0, Math.min(px, rect.width - 80));
+            py = Math.max(0, Math.min(py, rect.height - 80));
 
-      if (window.lfoRef) {
-        // 固体・液体：LFOの波形。固体(0)はパルス的、液体(1)はサイン波
-        window.lfoRef.type = state < 0.5 ? 'square' : 'sine';
-        
-        // サラサラ・ネバネバ：LFOの周波数と変調の深さ
-        // ネバネバ(1)ほど遅く、深く。サラサラ(0)ほど速く、浅く。
-        const speed = 10 - (viscosity * 8); // 2Hz ~ 10Hz
-        window.lfoRef.frequency.value = speed;
-        window.lfoGainRef.gain.value = 0.2 + (viscosity * 0.5);
-      }
+            // 境界にぶつかった場合（クランプが発生した場合）→ 衝突トリガー
+            const hitBoundary = (rawPx !== px || rawPy !== py);
+            if (hitBoundary && rawVelocity > 0.3) {
+                triggerCollision(Math.min(rawVelocity / 3.0, 1.0));
+            }
 
-      // 速度・加速度：再生レートへの影響（ピッチの変化）
-      if (noiseSource) {
-        let baseRate = 0.5 + velocity;
-        // 加速度によるピッチベンドのシミュレーション（簡易的）
-        let targetRate = baseRate + ((accel - 0.5) * 1.0);
-        noiseSource.playbackRate.setTargetAtTime(targetRate, audioCtx.currentTime, 0.5);
-      }
-    }
+            puck.style.left = px + 'px';
+            puck.style.top = py + 'px';
+        }
 
-    // イベントリスナー
-    const sliders = ['roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
-    sliders.forEach(id => {
-      document.getElementById(id).addEventListener('input', updateParams);
-    });
+        function endDrag() {
+            isDragging = false;
+        }
 
-    const playBtn = document.getElementById('playBtn');
-    playBtn.addEventListener('click', () => {
-      initAudio();
-      if (isPlaying) {
-        stopSound();
-        playBtn.textContent = 'Play / 再生';
-        playBtn.classList.remove('playing');
-      } else {
-        startSound();
-        playBtn.textContent = 'Stop / 停止';
-        playBtn.classList.add('playing');
-      }
-      isPlaying = !isPlaying;
-    });
+        // マウスイベント
+        puck.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+        window.addEventListener('mouseup', endDrag);
 
-    const recordBtn = document.getElementById('recordBtn');
-    recordBtn.addEventListener('click', () => {
-      if (mediaRecorder.state === 'inactive') {
-        mediaRecorder.start();
-        recordBtn.textContent = 'Stop Recording / 録音停止＆保存';
-        recordBtn.classList.add('recording');
-      } else {
-        mediaRecorder.stop();
-        recordBtn.textContent = 'Record (WAV) / 録音開始';
-        recordBtn.classList.remove('recording');
-      }
-    });
-  </script>
+        // タッチイベント（スマホ・タブレット用）
+        puck.addEventListener('touchstart', e => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX, e.touches[0].clientY), { passive: false });
+        window.addEventListener('touchend', endDrag);
+
+        // 物理演算ループ（速度の減衰、平滑化、加速度ベース衝突検出）
+        function updatePhysics() {
+            if (!isDragging || (performance.now() - lastTime > 50)) {
+                rawVelocity *= 0.7;
+            }
+
+            // 加速度ベースの衝突検出：急激な減速を検出
+            const deceleration = prevVelocity - rawVelocity;
+            if (deceleration > COLLISION_ACCEL_THRESHOLD && prevVelocity > 0.5) {
+                triggerCollision(Math.min(deceleration / 3.0, 1.0));
+            }
+            prevVelocity = rawVelocity;
+
+            // インパルスエンベロープの減衰
+            impulseEnvelope *= IMPULSE_DECAY_RATE;
+            if (impulseEnvelope < 0.001) impulseEnvelope = 0;
+
+            smoothedVelocity += (rawVelocity - smoothedVelocity) * 0.2;
+            requestAnimationFrame(updatePhysics);
+        }
+        updatePhysics();
+
+
+        // --- 音響/触覚生成エンジン (ScriptProcessor) ---
+        function hash(n) { return (Math.sin(n) * 43758.5453123) % 1; }
+        function noise(x) {
+            const p = Math.floor(x);
+            const f = x - p;
+            const u = f * f * (3.0 - 2.0 * f);
+            return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0;
+        }
+
+        let audioCtx;
+        let scriptNode;
+        let isPlaying = false;
+        let mediaRecorder, chunks = [];
+        let phase = 0;
+
+        async function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            const dest = audioCtx.createMediaStreamDestination();
+            mediaRecorder = new MediaRecorder(dest.stream);
+            mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            mediaRecorder.onstop = e => {
+                const outBlob = new Blob(chunks, { type: 'audio/wav' });
+                chunks = [];
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(outBlob);
+                a.download = 'dualsense_haptics.wav';
+                a.click();
+            };
+
+            document.getElementById('recordBtn').disabled = false;
+
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.value = 0;
+
+            scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+
+            scriptNode.onaudioprocess = function (audioProcessingEvent) {
+                const output = audioProcessingEvent.outputBuffer.getChannelData(0);
+                const sampleRate = audioCtx.sampleRate;
+
+                const val = id => parseFloat(document.getElementById(id).value);
+                const granularity = val('granularity');
+                const roughness = val('roughness');
+                const state = val('state');
+                const hardness = val('hardness');
+                const weight = val('weight');
+                const viscosity = val('viscosity');
+
+                // ドラッグによる動的ベロシティを取得
+                let currentVel = smoothedVelocity;
+
+                // 動いていない時は振動を完全に止めるためのゲイン（音量）エンベロープ
+                let movementGain = Math.min(currentVel * 1.5, 1.0);
+
+                // インパルス応答用パラメータ（バッファ処理開始時にスナップショット）
+                let currentImpulseEnv = impulseEnvelope;
+                const impulseFreq = 40 + (weight * 300);  // 衝突音の周波数（weightで変化）
+                // 減衰定数：hardnessが高いほど鋭く短い減衰、低いほど柔らかく長い減衰
+                const impulseSampleDecay = Math.pow(0.9995 - hardness * 0.0008, 1);
+
+                for (let i = 0; i < output.length; i++) {
+                    // ========== 1. 連続テクスチャ波形（既存） ==========
+                    const baseFreq = 20 + (weight * 160);
+                    const drag = viscosity > 0 ? (noise(phase * 0.1) * viscosity * 0.8) : 0;
+
+                    let scrollSpeed = Math.max(currentVel, 0.01);
+                    phase += (baseFreq * scrollSpeed * (1 - drag)) / sampleRate;
+
+                    let hapticVal = 0;
+                    let amp = 1.0;
+                    let freq = 1.0;
+                    let maxAmp = 0;
+
+                    for (let oct = 0; oct < 5; oct++) {
+                        hapticVal += noise(phase * freq) * amp;
+                        maxAmp += amp;
+                        amp *= roughness;
+                        freq *= 2.1;
+                    }
+                    hapticVal /= maxAmp;
+
+                    if (granularity > 0) {
+                        let absVal = Math.abs(hapticVal);
+                        let sign = Math.sign(hapticVal);
+                        let power = 1.0 + (granularity * 30.0);
+                        hapticVal = sign * Math.pow(absVal, power);
+                        hapticVal *= (1.0 + granularity * 1.5);
+                    }
+
+                    if (state > 0) {
+                        const steps = 1.0 + (1.0 - state) * 15.0;
+                        hapticVal = Math.round(hapticVal * steps) / steps;
+                    }
+
+                    if (hardness > 0) {
+                        const threshold = 1.0 - (hardness * 0.7);
+                        if (hapticVal > threshold) {
+                            hapticVal = threshold - (hapticVal - threshold);
+                        } else if (hapticVal < -threshold) {
+                            hapticVal = -threshold - (hapticVal + threshold);
+                        }
+                        hapticVal *= (1.0 + hardness * 1.2);
+                    }
+
+                    if (hapticVal > 1.0) hapticVal = 1.0;
+                    if (hapticVal < -1.0) hapticVal = -1.0;
+
+                    const textureGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain;
+                    let textureOut = hapticVal * textureGain;
+
+                    // ========== 2. インパルス応答波形（衝突時） ==========
+                    let impulseOut = 0;
+                    if (currentImpulseEnv > 0.001) {
+                        impulsePhase += impulseFreq / sampleRate;
+
+                        // ベース：減衰正弦波
+                        let impVal = Math.sin(impulsePhase * 2.0 * Math.PI);
+
+                        // roughnessでノイズを加算（ザラザラした衝突音）
+                        impVal += noise(impulsePhase * 8.0) * roughness * 0.6;
+
+                        // granularityで波形を鋭くする（パチッとしたインパルス感）
+                        if (granularity > 0) {
+                            impVal = Math.sign(impVal) * Math.pow(Math.abs(impVal), 1.0 + granularity * 3.0);
+                        }
+
+                        // hardnessでウェーブフォルディング（金属的な倍音）
+                        if (hardness > 0.1) {
+                            const foldThresh = 1.0 - hardness * 0.5;
+                            if (impVal > foldThresh) impVal = foldThresh - (impVal - foldThresh);
+                            else if (impVal < -foldThresh) impVal = -foldThresh - (impVal + foldThresh);
+                            impVal *= (1.0 + hardness * 0.8);
+                        }
+
+                        // stateでビットクラッシュ（不連続な衝撃感）
+                        if (state > 0) {
+                            const impSteps = 2.0 + (1.0 - state) * 14.0;
+                            impVal = Math.round(impVal * impSteps) / impSteps;
+                        }
+
+                        impVal = Math.max(-1.0, Math.min(1.0, impVal));
+
+                        // エンベロープ適用（サンプル単位で減衰）
+                        impulseOut = impVal * currentImpulseEnv;
+                        currentImpulseEnv *= impulseSampleDecay;
+                    }
+
+                    // ========== 3. テクスチャ + インパルスをミックス ==========
+                    let mixed = textureOut + impulseOut;
+                    if (mixed > 1.0) mixed = 1.0;
+                    if (mixed < -1.0) mixed = -1.0;
+                    output[i] = mixed;
+                }
+            };
+
+            scriptNode.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            gainNode.connect(dest);
+
+            window.masterGain = gainNode;
+        }
+
+        async function togglePlay() {
+            if (!audioCtx) await initAudio();
+
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+
+            if (isPlaying) {
+                window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+                document.getElementById('playBtn').textContent = 'Play / エンジン起動';
+                document.getElementById('playBtn').classList.remove('playing');
+            } else {
+                // エンジン起動後は、マウスの動き（movementGain）で音量が制御される
+                window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.05);
+                document.getElementById('playBtn').textContent = 'Stop / 停止';
+                document.getElementById('playBtn').classList.add('playing');
+            }
+            isPlaying = !isPlaying;
+        }
+
+        document.getElementById('playBtn').addEventListener('click', togglePlay);
+
+        const recordBtn = document.getElementById('recordBtn');
+        recordBtn.addEventListener('click', () => {
+            if (mediaRecorder.state === 'inactive') {
+                mediaRecorder.start();
+                recordBtn.textContent = 'Stop Recording';
+                recordBtn.classList.add('recording');
+            } else {
+                mediaRecorder.stop();
+                recordBtn.textContent = 'Record / 録音 (WAV)';
+                recordBtn.classList.remove('recording');
+            }
+        });
+
+        // --- AI質感生成 (Gemini API) ---
+        const generateBtn = document.getElementById('generateBtn');
+        const aiStatus = document.getElementById('aiStatus');
+        const PARAM_KEYS = ['granularity', 'roughness', 'state', 'hardness', 'weight', 'viscosity'];
+
+        function setStatus(msg, cls) {
+            aiStatus.textContent = msg;
+            aiStatus.className = cls || '';
+        }
+
+        function applyParams(params) {
+            PARAM_KEYS.forEach(key => {
+                const val = parseFloat(params[key]);
+                if (isNaN(val)) return;
+                const clamped = Math.max(0, Math.min(1, val));
+                const slider = document.getElementById(key);
+                slider.value = clamped;
+                slider.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const prompt = document.getElementById('aiPrompt').value.trim();
+
+            if (!apiKey) { setStatus('⚠ APIキーを入力してください。', 'error'); return; }
+            if (!prompt) { setStatus('⚠ 質感のイメージを入力してください。', 'error'); return; }
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = '⏳ 生成中...';
+            setStatus('Gemini APIに問い合わせています...', 'loading');
+
+            const systemInstruction = `あなたはプロのハプティクス（触覚）デザイナーです。ユーザーの入力した「触覚のイメージ」を分析し、以下の6つのパラメータ（0.0〜1.0の浮動小数点数）に変換して出力してください。
+- granularity: 滑らか(0.0) 〜 ツブツブのインパルス(1.0)
+- roughness: すべすべ(0.0) 〜 微細なザラザラノイズ(1.0)
+- state: 液体・連続(0.0) 〜 固体・不連続な摩擦(1.0)
+- hardness: 柔らかい(0.0) 〜 金属的に硬い(1.0)
+- weight: 重い・低音(0.0) 〜 軽い・高音(1.0)
+- viscosity: サラサラ(0.0) 〜 泥のようなネバネバ(1.0)
+必ず上記6つのキーだけを持つJSONオブジェクトのみを返してください。`;
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: systemInstruction }] },
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
+                                type: 'OBJECT',
+                                properties: {
+                                    granularity: { type: 'NUMBER' },
+                                    roughness: { type: 'NUMBER' },
+                                    state: { type: 'NUMBER' },
+                                    hardness: { type: 'NUMBER' },
+                                    weight: { type: 'NUMBER' },
+                                    viscosity: { type: 'NUMBER' }
+                                },
+                                required: PARAM_KEYS
+                            }
+                        }
+                    })
+                });
+
+                if (!res.ok) {
+                    const errBody = await res.text();
+                    throw new Error(`API Error ${res.status}: ${errBody.slice(0, 200)}`);
+                }
+
+                const data = await res.json();
+                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error('APIレスポンスにテキストが含まれていません。');
+
+                const params = JSON.parse(text);
+                const missing = PARAM_KEYS.filter(k => params[k] === undefined);
+                if (missing.length > 0) throw new Error(`パラメータが不足: ${missing.join(', ')}`);
+
+                applyParams(params);
+                setStatus(`✅ 質感を適用しました: 「${prompt}」`, 'success');
+            } catch (err) {
+                console.error('Gemini API Error:', err);
+                setStatus(`❌ エラー: ${err.message}`, 'error');
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'AIで質感を生成';
+            }
+        });
+    </script>
 </body>
+
 </html>
