@@ -1,3 +1,6 @@
+https://youtu.be/Z8sdY0dgh1E
+
+
 # VibeHapticDesigner
 Hapticsを自然言語から生成できるモジュールです
 
