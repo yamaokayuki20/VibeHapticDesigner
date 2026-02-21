@@ -2,232 +2,263 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>触覚・音響デザインツール (Perlin Haptics POC)</title>
+  <title>True Noise Haptics POC</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #fff; padding: 20px; max-width: 600px; margin: 0 auto; }
-    h1 { font-size: 1.5rem; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; }
-    .control-group { margin-bottom: 15px; background: #2a2a2a; padding: 15px; border-radius: 8px; }
-    label { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem;}
-    input[type="range"] { width: 100%; cursor: pointer; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: #eee; padding: 20px; max-width: 650px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; text-align: center; border-bottom: 1px solid #555; padding-bottom: 10px; }
+    .control-group { margin-bottom: 12px; background: #2d2d2d; padding: 12px; border-radius: 6px; }
+    label { display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: bold; font-size: 0.85rem;}
+    input[type="range"] { width: 100%; cursor: pointer; accent-color: #4CAF50; }
     .buttons { display: flex; gap: 10px; margin-top: 20px; }
-    button { flex: 1; padding: 15px; font-size: 1rem; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.2s; }
+    button { flex: 1; padding: 12px; font-size: 1rem; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
     #playBtn { background: #4CAF50; color: white; }
-    #playBtn.playing { background: #f44336; }
-    #recordBtn { background: #2196F3; color: white; }
-    #recordBtn.recording { background: #ff9800; animation: pulse 1s infinite; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    #playBtn.playing { background: #e53935; }
+    #recordBtn { background: #1e88e5; color: white; }
+    #recordBtn.recording { background: #fb8c00; animation: pulse 1s infinite; }
+    .desc { font-size: 0.75rem; color: #aaa; margin-top: 4px; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
   </style>
 </head>
 <body>
 
-  <h1>Haptic/Audio Generator POC</h1>
+  <h1>Simplex Noise + fBm Haptics Generator</h1>
 
   <div class="control-group">
     <label><span>すべすべ (0)</span> <span>ザラザラ (1)</span></label>
-    <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.5">
+    <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.2">
+    <div class="desc">fBmの高周波レイヤー（オクターブ）の重ね合わせ量</div>
   </div>
   
   <div class="control-group">
-    <label><span>固体 (0)</span> <span>液体 (1)</span></label>
-    <input type="range" id="state" min="0" max="1" step="0.01" value="0.5">
+    <label><span>液体 (0)</span> <span>固体 (1)</span></label>
+    <input type="range" id="state" min="0" max="1" step="0.01" value="0.0">
+    <div class="desc">波形の量子化（0=滑らかな流体, 1=ゴツゴツした不連続な段差）</div>
   </div>
 
   <div class="control-group">
-    <label><span>硬い (0)</span> <span>柔らかい (1)</span></label>
-    <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.5">
+    <label><span>柔らかい (0)</span> <span>硬い (1)</span></label>
+    <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.0">
+    <div class="desc">波形のエッジの鋭さ（ウェーブフォルダーによるピークの折り返し）</div>
   </div>
 
   <div class="control-group">
     <label><span>重い (0)</span> <span>軽い (1)</span></label>
     <input type="range" id="weight" min="0" max="1" step="0.01" value="0.5">
+    <div class="desc">ベースとなるノイズの基本周波数（ピッチ）と振幅</div>
   </div>
 
   <div class="control-group">
     <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
-    <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.5">
+    <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.0">
+    <div class="desc">摩擦感。振幅に対する引きずり抵抗（ノイズによる速度変調）</div>
   </div>
 
   <div class="control-group">
-    <label><span>速度 (遅い 0)</span> <span>速度 (速い 1)</span></label>
-    <input type="range" id="velocity" min="0" max="1" step="0.01" value="0.5">
+    <label><span>速度 (遅)</span> <span>速度 (速)</span></label>
+    <input type="range" id="velocity" min="0.1" max="5" step="0.01" value="1.0">
+    <div class="desc">ノイズ空間を移動する基本スピード</div>
   </div>
 
   <div class="control-group">
-    <label><span>加速度 (減速 0)</span> <span>加速度 (加速 1)</span></label>
-    <input type="range" id="acceleration" min="0" max="1" step="0.01" value="0.5">
+    <label><span>加速度 (減速)</span> <span>加速度 (加速)</span></label>
+    <input type="range" id="acceleration" min="-1" max="1" step="0.01" value="0.0">
+    <div class="desc">時間経過による速度の変化率</div>
   </div>
 
   <div class="buttons">
     <button id="playBtn">Play / 再生</button>
-    <button id="recordBtn" disabled>Record (WAV) / 録音開始</button>
+    <button id="recordBtn" disabled>Record / 録音 (WAV)</button>
   </div>
 
   <script>
+    // --- AudioWorkletのソースコード (Blobで動的に読み込む) ---
+    const workletCode = `
+      // 簡易的な1Dバリューノイズ生成器（シンプレックスの代替として高速処理）
+      function hash(n) { return (Math.sin(n) * 43758.5453123) % 1; }
+      function noise(x) {
+          const p = Math.floor(x);
+          const f = x - p;
+          const u = f * f * (3.0 - 2.0 * f); // Smoothstep
+          return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0; // -1 to 1
+      }
+
+      class HapticProcessor extends AudioWorkletProcessor {
+          constructor() {
+              super();
+              this.phase = 0;
+              this.time = 0;
+          }
+
+          static get parameterDescriptors() {
+              return [
+                  { name: 'roughness', defaultValue: 0.2, minValue: 0, maxValue: 1 },
+                  { name: 'state', defaultValue: 0, minValue: 0, maxValue: 1 }, // 0: Liquid, 1: Solid
+                  { name: 'hardness', defaultValue: 0, minValue: 0, maxValue: 1 },
+                  { name: 'weight', defaultValue: 0.5, minValue: 0, maxValue: 1 },
+                  { name: 'viscosity', defaultValue: 0, minValue: 0, maxValue: 1 },
+                  { name: 'velocity', defaultValue: 1.0, minValue: 0.1, maxValue: 5 },
+                  { name: 'acceleration', defaultValue: 0, minValue: -1, maxValue: 1 }
+              ];
+          }
+
+          process(inputs, outputs, parameters) {
+              const output = outputs[0];
+              const channel = output[0];
+              const sampleRate = 48000; // 内部レート
+
+              // パラメータの取得（1ブロック分）
+              const getParam = (name, i) => parameters[name].length > 1 ? parameters[name][i] : parameters[name][0];
+
+              for (let i = 0; i < channel.length; i++) {
+                  const roughness = getParam('roughness', i);
+                  const state = getParam('state', i);
+                  const hardness = getParam('hardness', i);
+                  const weight = getParam('weight', i);
+                  const viscosity = getParam('viscosity', i);
+                  const velocity = getParam('velocity', i);
+                  const accel = getParam('acceleration', i);
+
+                  this.time += 1 / sampleRate;
+
+                  // 速度と加速度から位相を更新
+                  let currentSpeed = velocity * (1.0 + accel * this.time * 0.5);
+                  if (currentSpeed < 0) currentSpeed = 0;
+                  
+                  // 重さによる基本周波数のシフト（重いほど低く、軽いほど高い）
+                  const baseFreq = 10 + (weight * 40); 
+                  
+                  // ネバネバ（粘度）: 位相の進みに抵抗（ドラッグ）をかける。ノイズ自身の値でFM変調（引きずる感じ）
+                  const drag = viscosity > 0 ? (noise(this.phase * 0.1) * viscosity * 0.5) : 0;
+                  
+                  this.phase += (baseFreq * currentSpeed * (1 - drag)) / sampleRate;
+
+                  // フラクタル・ブラウン運動 (fBm) の生成
+                  let hapticVal = 0;
+                  let amp = 1.0;
+                  let freq = 1.0;
+                  let maxAmp = 0;
+
+                  // オクターブ（レイヤー）を重ねてザラザラ感を作る
+                  // ザラザラ(roughness)が高いほど、高周波の振幅が残る
+                  for (let oct = 0; oct < 4; oct++) {
+                      hapticVal += noise(this.phase * freq) * amp;
+                      maxAmp += amp;
+                      amp *= roughness; // roughnessが0だと最初の波だけ残る（すべすべ）
+                      freq *= 2.5;
+                  }
+                  hapticVal /= maxAmp;
+
+                  // 液体ー固体 (State): 波形を階段状に量子化してゴツゴツさせる
+                  if (state > 0) {
+                      const steps = 1.0 + (1.0 - state) * 20.0; // 固体(1)に近いほどステップ数が減る
+                      hapticVal = Math.round(hapticVal * steps) / steps;
+                  }
+
+                  // 柔らかいー硬い (Hardness): ウェーブフォルダー（歪み）
+                  // 柔らかい(0)はそのまま。硬い(1)は閾値を超えた波形を反転させ、鋭いエッジ（高周波）を生む
+                  if (hardness > 0) {
+                      const threshold = 1.0 - (hardness * 0.8);
+                      if (hapticVal > threshold) {
+                          hapticVal = threshold - (hapticVal - threshold);
+                      } else if (hapticVal < -threshold) {
+                          hapticVal = -threshold - (hapticVal + threshold);
+                      }
+                      hapticVal *= (1.0 + hardness); // ゲイン補償
+                  }
+
+                  // 最終的な音量調整（重い＝振幅が大きい）
+                  const finalGain = 0.5 + ((1.0 - weight) * 0.5);
+                  channel[i] = hapticVal * finalGain;
+              }
+
+              return true; // 処理を継続
+          }
+      }
+      registerProcessor('haptic-processor', HapticProcessor);
+    `;
+
     let audioCtx;
-    let noiseSource, lfo, gainNode, filter, lowShelf;
+    let workletNode;
     let isPlaying = false;
     let mediaRecorder, chunks = [];
 
-    // ノイズバッファの生成（簡易的なホワイトノイズから構築）
-    function createNoiseBuffer(ctx) {
-      const bufferSize = ctx.sampleRate * 2; // 2秒ループ
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-      }
-      return buffer;
-    }
-
-    function initAudio() {
+    async function initAudio() {
       if (audioCtx) return;
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       
-      // 録音用のノード
+      // Blob URLを使ってAudioWorkletを読み込む
+      const blob = new Blob([workletCode], { type: 'application/javascript' });
+      const workletUrl = URL.createObjectURL(blob);
+      await audioCtx.audioWorklet.addModule(workletUrl);
+
+      workletNode = new AudioWorkletNode(audioCtx, 'haptic-processor');
+
+      // 録音設定
       const dest = audioCtx.createMediaStreamDestination();
       mediaRecorder = new MediaRecorder(dest.stream);
-      
       mediaRecorder.ondataavailable = e => chunks.push(e.data);
       mediaRecorder.onstop = e => {
-        const blob = new Blob(chunks, { 'type' : 'audio/wav' }); // ブラウザによってはwebmになります
+        const outBlob = new Blob(chunks, { type: 'audio/wav' });
         chunks = [];
-        const audioURL = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = audioURL;
-        a.download = 'haptic_audio.wav';
-        document.body.appendChild(a);
+        a.href = URL.createObjectURL(outBlob);
+        a.download = 'haptic_fBm.wav';
         a.click();
       };
       
       document.getElementById('recordBtn').disabled = false;
 
-      // マスターゲイン
-      gainNode = audioCtx.createGain();
+      // マスターゲイン（フェード用）
+      const gainNode = audioCtx.createGain();
       gainNode.gain.value = 0;
-      
-      // フィルタリング
-      filter = audioCtx.createBiquadFilter();
-      filter.type = 'lowpass';
-      
-      lowShelf = audioCtx.createBiquadFilter();
-      lowShelf.type = 'lowshelf';
-      lowShelf.frequency.value = 150;
-
-      // 接続
-      filter.connect(lowShelf);
-      lowShelf.connect(gainNode);
+      workletNode.connect(gainNode);
       gainNode.connect(audioCtx.destination);
-      gainNode.connect(dest); // 録音用にも分岐
+      gainNode.connect(dest);
 
-      updateParams();
+      window.masterGain = gainNode;
     }
 
-    function startSound() {
-      noiseSource = audioCtx.createBufferSource();
-      noiseSource.buffer = createNoiseBuffer(audioCtx);
-      noiseSource.loop = true;
+    async function togglePlay() {
+      if (!audioCtx) await initAudio();
 
-      lfo = audioCtx.createOscillator();
-      const lfoGain = audioCtx.createGain();
-      
-      lfo.connect(lfoGain);
-      lfoGain.connect(gainNode.gain);
-
-      noiseSource.connect(filter);
-      
-      noiseSource.start();
-      lfo.start();
-      
-      // 滑らかなフェードイン
-      gainNode.gain.setTargetAtTime(0.5, audioCtx.currentTime, 0.1);
-      
-      // パラメータをLFO等に適用
-      window.lfoRef = lfo;
-      window.lfoGainRef = lfoGain;
-      updateParams();
-    }
-
-    function stopSound() {
-      gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-      setTimeout(() => {
-        if(noiseSource) noiseSource.stop();
-        if(lfo) lfo.stop();
-      }, 200);
+      if (isPlaying) {
+        window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+        document.getElementById('playBtn').textContent = 'Play / 再生';
+        document.getElementById('playBtn').classList.remove('playing');
+      } else {
+        window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.1);
+        document.getElementById('playBtn').textContent = 'Stop / 停止';
+        document.getElementById('playBtn').classList.add('playing');
+      }
+      isPlaying = !isPlaying;
     }
 
     function updateParams() {
-      if (!audioCtx) return;
-
-      const val = id => parseFloat(document.getElementById(id).value);
-      
-      const roughness = val('roughness');
-      const state = val('state');
-      const hardness = val('hardness');
-      const weight = val('weight');
-      const viscosity = val('viscosity');
-      const velocity = val('velocity');
-      const accel = val('acceleration');
-
-      // ザラザラ度：ローパスフィルタのカットオフ
-      filter.frequency.value = 200 + (roughness * 5000);
-      
-      // 硬さ：フィルタのレゾナンス（Q値）
-      filter.Q.value = (1 - hardness) * 10;
-
-      // 重さ：Lowshelfのゲイン（低音強調）
-      lowShelf.gain.value = (1 - weight) * 15; // 0=重い=低音ブースト, 1=軽い
-
-      if (window.lfoRef) {
-        // 固体・液体：LFOの波形。固体(0)はパルス的、液体(1)はサイン波
-        window.lfoRef.type = state < 0.5 ? 'square' : 'sine';
-        
-        // サラサラ・ネバネバ：LFOの周波数と変調の深さ
-        // ネバネバ(1)ほど遅く、深く。サラサラ(0)ほど速く、浅く。
-        const speed = 10 - (viscosity * 8); // 2Hz ~ 10Hz
-        window.lfoRef.frequency.value = speed;
-        window.lfoGainRef.gain.value = 0.2 + (viscosity * 0.5);
-      }
-
-      // 速度・加速度：再生レートへの影響（ピッチの変化）
-      if (noiseSource) {
-        let baseRate = 0.5 + velocity;
-        // 加速度によるピッチベンドのシミュレーション（簡易的）
-        let targetRate = baseRate + ((accel - 0.5) * 1.0);
-        noiseSource.playbackRate.setTargetAtTime(targetRate, audioCtx.currentTime, 0.5);
-      }
+      if (!workletNode) return;
+      const params = ['roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
+      params.forEach(p => {
+        const val = parseFloat(document.getElementById(p).value);
+        workletNode.parameters.get(p).setTargetAtTime(val, audioCtx.currentTime, 0.05);
+      });
     }
 
-    // イベントリスナー
+    document.getElementById('playBtn').addEventListener('click', togglePlay);
+    
+    // スライダーのイベントリスナー
     const sliders = ['roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
     sliders.forEach(id => {
       document.getElementById(id).addEventListener('input', updateParams);
-    });
-
-    const playBtn = document.getElementById('playBtn');
-    playBtn.addEventListener('click', () => {
-      initAudio();
-      if (isPlaying) {
-        stopSound();
-        playBtn.textContent = 'Play / 再生';
-        playBtn.classList.remove('playing');
-      } else {
-        startSound();
-        playBtn.textContent = 'Stop / 停止';
-        playBtn.classList.add('playing');
-      }
-      isPlaying = !isPlaying;
     });
 
     const recordBtn = document.getElementById('recordBtn');
     recordBtn.addEventListener('click', () => {
       if (mediaRecorder.state === 'inactive') {
         mediaRecorder.start();
-        recordBtn.textContent = 'Stop Recording / 録音停止＆保存';
+        recordBtn.textContent = 'Stop Recording';
         recordBtn.classList.add('recording');
       } else {
         mediaRecorder.stop();
-        recordBtn.textContent = 'Record (WAV) / 録音開始';
+        recordBtn.textContent = 'Record / 録音 (WAV)';
         recordBtn.classList.remove('recording');
       }
     });
