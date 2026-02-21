@@ -2,84 +2,88 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>True Noise Haptics POC</title>
+  <title>DualSense HD Haptics POC</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: #eee; padding: 20px; max-width: 650px; margin: 0 auto; }
-    h1 { font-size: 1.4rem; text-align: center; border-bottom: 1px solid #555; padding-bottom: 10px; }
-    .control-group { margin-bottom: 12px; background: #2d2d2d; padding: 12px; border-radius: 6px; }
-    label { display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: bold; font-size: 0.85rem;}
-    input[type="range"] { width: 100%; cursor: pointer; accent-color: #4CAF50; }
-    .buttons { display: flex; gap: 10px; margin-top: 20px; }
-    button { flex: 1; padding: 12px; font-size: 1rem; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
-    #playBtn { background: #4CAF50; color: white; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #f0f0f0; padding: 20px; max-width: 700px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; text-align: center; border-bottom: 2px solid #00439c; padding-bottom: 10px; color: #fff; }
+    .control-group { margin-bottom: 12px; background: #222; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    label { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 0.9rem; color: #66b2ff;}
+    input[type="range"] { width: 100%; cursor: pointer; accent-color: #0070cc; }
+    .buttons { display: flex; gap: 10px; margin-top: 25px; }
+    button { flex: 1; padding: 14px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
+    #playBtn { background: #0070cc; color: white; }
     #playBtn.playing { background: #e53935; }
-    #recordBtn { background: #1e88e5; color: white; }
-    #recordBtn.recording { background: #fb8c00; animation: pulse 1s infinite; }
-    .desc { font-size: 0.75rem; color: #aaa; margin-top: 4px; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    #recordBtn { background: #555; color: white; }
+    #recordBtn.recording { background: #ff9800; animation: pulse 1s infinite; color: black; }
+    .desc { font-size: 0.8rem; color: #aaa; margin-top: 5px; line-height: 1.3; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
   </style>
 </head>
 <body>
 
-  <h1>Simplex Noise + fBm Haptics Generator</h1>
+  <h1>PS5 DualSense™ HD Haptics Generator</h1>
+
+  <div class="control-group">
+    <label><span>粒感 (滑らか 0)</span> <span>粒感 (ツブツブ 1)</span></label>
+    <input type="range" id="granularity" min="0" max="1" step="0.01" value="0.0">
+    <div class="desc">VCA特有の鋭いインパルス（衝撃）。波形の頂点を針のように鋭くし、砂や小石のような独立した粒の感覚を作ります。</div>
+  </div>
 
   <div class="control-group">
     <label><span>すべすべ (0)</span> <span>ザラザラ (1)</span></label>
     <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.2">
-    <div class="desc">fBmの高周波レイヤー（オクターブ）の重ね合わせ量</div>
+    <div class="desc">fBmによる微細な高周波ノイズの付加。ガラスのような滑らかさから、ヤスリのような質感まで。</div>
   </div>
   
   <div class="control-group">
     <label><span>液体 (0)</span> <span>固体 (1)</span></label>
     <input type="range" id="state" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">波形の量子化（0=滑らかな流体, 1=ゴツゴツした不連続な段差）</div>
+    <div class="desc">連続的か、断続的か。固体に近づくと波形がビットクラッシュ（階段状）になり、ゴリゴリとした摩擦を生みます。</div>
   </div>
 
   <div class="control-group">
     <label><span>柔らかい (0)</span> <span>硬い (1)</span></label>
     <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">波形のエッジの鋭さ（ウェーブフォルダーによるピークの折り返し）</div>
+    <div class="desc">衝撃の硬さ。ウェーブフォルダーによる波の「折り返し」で、金属的なカンッという硬い感触を加えます。</div>
   </div>
 
   <div class="control-group">
     <label><span>重い (0)</span> <span>軽い (1)</span></label>
     <input type="range" id="weight" min="0" max="1" step="0.01" value="0.5">
-    <div class="desc">ベースとなるノイズの基本周波数（ピッチ）と振幅</div>
+    <div class="desc">ベース周波数。重い＝20Hz付近のズンッとした重低音振動、軽い＝150Hz付近のチリチリした軽い振動。</div>
   </div>
 
   <div class="control-group">
     <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
     <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">摩擦感。振幅に対する引きずり抵抗（ノイズによる速度変調）</div>
+    <div class="desc">引きずり抵抗。ノイズ進行を不規則に遅らせ、泥やスライムをかき混ぜるような抵抗感をシミュレート。</div>
   </div>
 
   <div class="control-group">
     <label><span>速度 (遅)</span> <span>速度 (速)</span></label>
     <input type="range" id="velocity" min="0.1" max="5" step="0.01" value="1.0">
-    <div class="desc">ノイズ空間を移動する基本スピード</div>
+    <div class="desc">表面をなぞるスピードそのもの。</div>
   </div>
 
   <div class="control-group">
     <label><span>加速度 (減速)</span> <span>加速度 (加速)</span></label>
     <input type="range" id="acceleration" min="-1" max="1" step="0.01" value="0.0">
-    <div class="desc">時間経過による速度の変化率</div>
+    <div class="desc">時間経過による速度変化。</div>
   </div>
 
   <div class="buttons">
-    <button id="playBtn">Play / 再生</button>
+    <button id="playBtn">Play / 触覚再生</button>
     <button id="recordBtn" disabled>Record / 録音 (WAV)</button>
   </div>
 
   <script>
-    // --- AudioWorkletのソースコード (Blobで動的に読み込む) ---
     const workletCode = `
-      // 簡易的な1Dバリューノイズ生成器（シンプレックスの代替として高速処理）
       function hash(n) { return (Math.sin(n) * 43758.5453123) % 1; }
       function noise(x) {
           const p = Math.floor(x);
           const f = x - p;
-          const u = f * f * (3.0 - 2.0 * f); // Smoothstep
-          return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0; // -1 to 1
+          const u = f * f * (3.0 - 2.0 * f);
+          return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0;
       }
 
       class HapticProcessor extends AudioWorkletProcessor {
@@ -91,8 +95,9 @@
 
           static get parameterDescriptors() {
               return [
+                  { name: 'granularity', defaultValue: 0, minValue: 0, maxValue: 1 },
                   { name: 'roughness', defaultValue: 0.2, minValue: 0, maxValue: 1 },
-                  { name: 'state', defaultValue: 0, minValue: 0, maxValue: 1 }, // 0: Liquid, 1: Solid
+                  { name: 'state', defaultValue: 0, minValue: 0, maxValue: 1 },
                   { name: 'hardness', defaultValue: 0, minValue: 0, maxValue: 1 },
                   { name: 'weight', defaultValue: 0.5, minValue: 0, maxValue: 1 },
                   { name: 'viscosity', defaultValue: 0, minValue: 0, maxValue: 1 },
@@ -104,12 +109,12 @@
           process(inputs, outputs, parameters) {
               const output = outputs[0];
               const channel = output[0];
-              const sampleRate = 48000; // 内部レート
+              const sampleRate = 48000;
 
-              // パラメータの取得（1ブロック分）
               const getParam = (name, i) => parameters[name].length > 1 ? parameters[name][i] : parameters[name][0];
 
               for (let i = 0; i < channel.length; i++) {
+                  const granularity = getParam('granularity', i);
                   const roughness = getParam('roughness', i);
                   const state = getParam('state', i);
                   const hardness = getParam('hardness', i);
@@ -120,58 +125,70 @@
 
                   this.time += 1 / sampleRate;
 
-                  // 速度と加速度から位相を更新
                   let currentSpeed = velocity * (1.0 + accel * this.time * 0.5);
                   if (currentSpeed < 0) currentSpeed = 0;
                   
-                  // 重さによる基本周波数のシフト（重いほど低く、軽いほど高い）
-                  const baseFreq = 10 + (weight * 40); 
+                  // DualSense(VCA)向けチューニング: 
+                  // 再生可能帯域が広いため、20Hz(ズンッ) 〜 180Hz(ビリィィ) までダイナミックに可変
+                  const baseFreq = 20 + (weight * 160); 
                   
-                  // ネバネバ（粘度）: 位相の進みに抵抗（ドラッグ）をかける。ノイズ自身の値でFM変調（引きずる感じ）
-                  const drag = viscosity > 0 ? (noise(this.phase * 0.1) * viscosity * 0.5) : 0;
+                  const drag = viscosity > 0 ? (noise(this.phase * 0.1) * viscosity * 0.8) : 0;
                   
                   this.phase += (baseFreq * currentSpeed * (1 - drag)) / sampleRate;
 
-                  // フラクタル・ブラウン運動 (fBm) の生成
+                  // フラクタル・ブラウン運動 (fBm)
+                  // DualSenseは高周波のザラつきを綺麗に鳴らせるのでオクターブを5層に拡張
                   let hapticVal = 0;
                   let amp = 1.0;
                   let freq = 1.0;
                   let maxAmp = 0;
 
-                  // オクターブ（レイヤー）を重ねてザラザラ感を作る
-                  // ザラザラ(roughness)が高いほど、高周波の振幅が残る
-                  for (let oct = 0; oct < 4; oct++) {
+                  for (let oct = 0; oct < 5; oct++) {
                       hapticVal += noise(this.phase * freq) * amp;
                       maxAmp += amp;
-                      amp *= roughness; // roughnessが0だと最初の波だけ残る（すべすべ）
-                      freq *= 2.5;
+                      amp *= roughness;
+                      freq *= 2.1; 
                   }
                   hapticVal /= maxAmp;
 
-                  // 液体ー固体 (State): 波形を階段状に量子化してゴツゴツさせる
+                  // 粒感 (Granularity) - VCA向け調整:
+                  // 連続した波を極端に尖らせて「カチッ」「チッ」という独立したインパルス（粒）に変換
+                  if (granularity > 0) {
+                      let absVal = Math.abs(hapticVal);
+                      let sign = Math.sign(hapticVal);
+                      // VCAは鋭い波形に瞬時に反応するため、累乗をさらに上げて針のような波形にする
+                      let power = 1.0 + (granularity * 30.0); 
+                      hapticVal = sign * Math.pow(absVal, power);
+                      // 音量（振幅）の補正：細くなったパルスを強調
+                      hapticVal *= (1.0 + granularity * 1.5); 
+                  }
+
+                  // 液体ー固体 (State): 量子化（ゴリゴリ感）
                   if (state > 0) {
-                      const steps = 1.0 + (1.0 - state) * 20.0; // 固体(1)に近いほどステップ数が減る
+                      const steps = 1.0 + (1.0 - state) * 15.0;
                       hapticVal = Math.round(hapticVal * steps) / steps;
                   }
 
-                  // 柔らかいー硬い (Hardness): ウェーブフォルダー（歪み）
-                  // 柔らかい(0)はそのまま。硬い(1)は閾値を超えた波形を反転させ、鋭いエッジ（高周波）を生む
+                  // 柔らかいー硬い (Hardness): ウェーブフォールディング
                   if (hardness > 0) {
-                      const threshold = 1.0 - (hardness * 0.8);
+                      const threshold = 1.0 - (hardness * 0.7);
                       if (hapticVal > threshold) {
                           hapticVal = threshold - (hapticVal - threshold);
                       } else if (hapticVal < -threshold) {
                           hapticVal = -threshold - (hapticVal + threshold);
                       }
-                      hapticVal *= (1.0 + hardness); // ゲイン補償
+                      hapticVal *= (1.0 + hardness * 1.2);
                   }
+
+                  // クリッピング防止
+                  if (hapticVal > 1.0) hapticVal = 1.0;
+                  if (hapticVal < -1.0) hapticVal = -1.0;
 
                   // 最終的な音量調整（重い＝振幅が大きい）
                   const finalGain = 0.5 + ((1.0 - weight) * 0.5);
                   channel[i] = hapticVal * finalGain;
               }
-
-              return true; // 処理を継続
+              return true;
           }
       }
       registerProcessor('haptic-processor', HapticProcessor);
@@ -186,14 +203,12 @@
       if (audioCtx) return;
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       
-      // Blob URLを使ってAudioWorkletを読み込む
       const blob = new Blob([workletCode], { type: 'application/javascript' });
       const workletUrl = URL.createObjectURL(blob);
       await audioCtx.audioWorklet.addModule(workletUrl);
 
       workletNode = new AudioWorkletNode(audioCtx, 'haptic-processor');
 
-      // 録音設定
       const dest = audioCtx.createMediaStreamDestination();
       mediaRecorder = new MediaRecorder(dest.stream);
       mediaRecorder.ondataavailable = e => chunks.push(e.data);
@@ -202,13 +217,12 @@
         chunks = [];
         const a = document.createElement('a');
         a.href = URL.createObjectURL(outBlob);
-        a.download = 'haptic_fBm.wav';
+        a.download = 'dualsense_haptics.wav';
         a.click();
       };
       
       document.getElementById('recordBtn').disabled = false;
 
-      // マスターゲイン（フェード用）
       const gainNode = audioCtx.createGain();
       gainNode.gain.value = 0;
       workletNode.connect(gainNode);
@@ -222,11 +236,11 @@
       if (!audioCtx) await initAudio();
 
       if (isPlaying) {
-        window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-        document.getElementById('playBtn').textContent = 'Play / 再生';
+        window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+        document.getElementById('playBtn').textContent = 'Play / 触覚再生';
         document.getElementById('playBtn').classList.remove('playing');
       } else {
-        window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.1);
+        window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.05);
         document.getElementById('playBtn').textContent = 'Stop / 停止';
         document.getElementById('playBtn').classList.add('playing');
       }
@@ -235,17 +249,16 @@
 
     function updateParams() {
       if (!workletNode) return;
-      const params = ['roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
+      const params = ['granularity', 'roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
       params.forEach(p => {
         const val = parseFloat(document.getElementById(p).value);
-        workletNode.parameters.get(p).setTargetAtTime(val, audioCtx.currentTime, 0.05);
+        workletNode.parameters.get(p).setTargetAtTime(val, audioCtx.currentTime, 0.01);
       });
     }
 
     document.getElementById('playBtn').addEventListener('click', togglePlay);
     
-    // スライダーのイベントリスナー
-    const sliders = ['roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
+    const sliders = ['granularity', 'roughness', 'state', 'hardness', 'weight', 'viscosity', 'velocity', 'acceleration'];
     sliders.forEach(id => {
       document.getElementById(id).addEventListener('input', updateParams);
     });
