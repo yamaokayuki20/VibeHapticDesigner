@@ -99,28 +99,35 @@ class HapticEngine(context: Context) {
                     val scrollSpeed = max(currentVel.toDouble(), 0.02)
                     
                     // How fast the "texture bumps" arrive (spatial frequency)
-                    val baseFreq = 10.0 + (weight * 40.0) + (roughness * 20.0)
+                    // High viscosity (liquid) or Low Roughness (smooth cloth) needs very high frequency to blend into a continuous hum
+                    val baseFreq = if (viscosity > 0.4f || roughness < 0.3f) {
+                        50.0 + (viscosity * 100.0) + (weight * 20.0) // Smooth continuous
+                    } else {
+                        10.0 + (weight * 40.0) + (roughness * 20.0) // Distinct granular bumps
+                    }
                     
                     // Advance virtual phase over the texture
-                    val phaseDelta = (baseFreq * scrollSpeed * (1.0 - drag)) / 60.0 // Assuming ~60Hz poll rate
+                    val phaseDelta = (baseFreq * scrollSpeed * (1.0 - drag)) / 120.0 // Assuming higher ~120Hz poll rate for smoothness
                     phase += phaseDelta
 
                     // If we crossed an integer boundary, we hit a "bump" in the texture
                     if (floor(phase) > floor(phase - phaseDelta)) {
                         
                         // Modulate amplitude based on noise to make it feel organic, not a perfect buzz
-                        val bumpVal = abs(noise(phase * (1.0 + granularity * 5.0)))
+                        // Liquid/Smooth has less noise modulation than rough/granular
+                        val noiseFactor = if (viscosity > 0.4f) 0.1 else if (roughness < 0.3f) 0.05 else 1.0
+                        val bumpVal = if (noiseFactor < 1.0) 1.0 else abs(noise(phase * (1.0 + granularity * 5.0)))
                         
                         // Scale amplitude
-                        val amplitudeScale = min((currentVel * 0.5f) + (bumpVal.toFloat() * roughness), 1.0f)
+                        val amplitudeScale = min((currentVel * 0.5f) + (bumpVal.toFloat() * roughness * noiseFactor.toFloat()), 1.0f)
 
                         playTextureBump(amplitudeScale)
                     }
                 }
 
-                // Sleep to maintain ~60Hz logic loop (about 16ms)
+                // Sleep to maintain ~120Hz logic loop (about 8ms) for super smooth high-freq textures
                 val elapsed = System.currentTimeMillis() - loopStartTime
-                val sleepTime = 16L - elapsed
+                val sleepTime = 8L - elapsed
                 if (sleepTime > 0) {
                     Thread.sleep(sleepTime)
                 }
@@ -141,11 +148,12 @@ class HapticEngine(context: Context) {
                 
             val composition = VibrationEffect.startComposition()
             
-            // Choose primary primitive based on state/hardness/weight
+            // Choose primary primitive based on state/hardness/weight/viscosity
             val primaryPrimitive = when {
+                viscosity > 0.4f -> VibrationEffect.Composition.PRIMITIVE_LOW_TICK // Muddy/Viscous liquid: dull low tick
+                roughness < 0.3f && state < 0.5f -> VibrationEffect.Composition.PRIMITIVE_TICK // Smooth soft cloth
                 hardness > 0.6f && state < 0.3f -> VibrationEffect.Composition.PRIMITIVE_CLICK // Hard solid: sharp click
                 weight > 0.6f -> VibrationEffect.Composition.PRIMITIVE_THUD    // Heavy: deep thud
-                viscosity > 0.5f -> VibrationEffect.Composition.PRIMITIVE_LOW_TICK // Muddy/Viscous: dull low tick
                 else -> VibrationEffect.Composition.PRIMITIVE_TICK             // Default texture: light tick
             }
 
@@ -153,9 +161,13 @@ class HapticEngine(context: Context) {
             composition.addPrimitive(primaryPrimitive, amplitudeScale)
 
             // Add secondary primitive for high granularity/roughness (crispy texture)
-            if (granularity > 0.5f) {
+            // But NOT for viscous/liquids which should remain smooth
+            if (granularity > 0.5f && viscosity < 0.4f) {
                 // adding a tiny delayed click makes it feel "sandpapery" or granular
                 composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, amplitudeScale * 0.5f, 5) 
+            } else if (viscosity > 0.8f) {
+                // extreme liquid: double low tick for "slosh" feel
+                composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, amplitudeScale * 0.3f, 8) 
             }
 
             vibrator.vibrate(composition.compose())
