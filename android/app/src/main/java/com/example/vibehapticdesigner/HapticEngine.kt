@@ -1,17 +1,21 @@
 package com.example.vibehapticdesigner
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioTrack
-import android.media.audiofx.HapticGenerator
-import android.util.Log
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import kotlin.math.*
 
 class HapticEngine(context: Context) {
-    private var audioTrack: AudioTrack? = null
-    private var hapticGenerator: HapticGenerator? = null
+    private val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+        vibratorManager.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
     private var isPlaying = false
     private var thread: Thread? = null
 
@@ -26,51 +30,7 @@ class HapticEngine(context: Context) {
     // Physics
     private var smoothedVelocity = 0f
     private var targetVelocity = 0f
-    private var phase = 0.0
-
-    // Const
-    private val sampleRate = 48000
-    private val bufferSize = AudioTrack.getMinBufferSize(
-        sampleRate,
-        AudioFormat.CHANNEL_OUT_MONO,
-        AudioFormat.ENCODING_PCM_16BIT
-    )
-
-    init {
-        initAudioTrack(context)
-    }
-
-    private fun initAudioTrack(context: Context) {
-        audioTrack = AudioTrack(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION) // Good for haptics
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build(),
-            AudioFormat.Builder()
-                .setSampleRate(sampleRate)
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                .build(),
-            bufferSize * 2,
-            AudioTrack.MODE_STREAM,
-            AudioManager.AUDIO_SESSION_ID_GENERATE
-        )
-
-        // Ensure media volume is high enough for HapticGenerator to trigger
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
-
-        // Attach Pixel 8 HD Haptics (HapticGenerator) to this specific audio session
-        if (HapticGenerator.isAvailable()) {
-            hapticGenerator = HapticGenerator.create(audioTrack!!.audioSessionId).apply {
-                enabled = true
-            }
-            Log.d("HapticEngine", "HapticGenerator attached successfully!")
-        } else {
-            Log.w("HapticEngine", "HapticGenerator not available on this device.")
-        }
-    }
+    private var lastVibrationTime = 0L
 
     fun updateParams(granularity: Float, roughness: Float, state: Float, hardness: Float, weight: Float, viscosity: Float) {
         this.granularity = granularity
@@ -84,7 +44,6 @@ class HapticEngine(context: Context) {
     fun onDragStart() {}
     fun onDragMove(vX: Float, vY: Float) {
         val dist = sqrt(vX * vX + vY * vY)
-        // map velocity to 0..5 approx
         targetVelocity = min(dist * 5.0f, 5.0f)
     }
     fun onDragEnd() {
@@ -92,95 +51,91 @@ class HapticEngine(context: Context) {
     }
 
     fun start() {
-        if (isPlaying || audioTrack?.state != AudioTrack.STATE_INITIALIZED) return
+        if (isPlaying) return
         isPlaying = true
-        audioTrack?.play()
 
         thread = Thread {
-            val shortBuffer = ShortArray(bufferSize / 2)
             while (isPlaying) {
-                // Smooth velocity (runs at buffer rate)
+                // Smooth velocity
                 smoothedVelocity += (targetVelocity - smoothedVelocity) * 0.1f
                 targetVelocity *= 0.8f // Auto decay if no move events
 
                 val currentVel = smoothedVelocity
-                val movementGain = min(currentVel * 1.5f, 1.0f)
+                
+                // Only vibrate if moving fast enough
+                if (currentVel > 0.05f) {
+                    val now = System.currentTimeMillis()
+                    
+                    // Interval between haptic pulses depends on weight and velocity
+                    // High weight = slower pulses (deep rumbles), fast velocity = faster pulses
+                    val baseIntervalMs = 20.0 + (weight * 60.0)
+                    val intervalMs = max(baseIntervalMs / currentVel, 8.0).toLong()
 
-                for (i in shortBuffer.indices) {
-                    val baseFreq = 20.0 + (weight * 160.0)
-                    val drag = if (viscosity > 0) noise(phase * 0.1) * viscosity * 0.8 else 0.0
-
-                    val scrollSpeed = max(currentVel.toDouble(), 0.01)
-                    phase += (baseFreq * scrollSpeed * (1.0 - drag)) / sampleRate
-
-                    var hapticVal = 0.0
-                    var amp = 1.0
-                    var freq = 1.0
-                    var maxAmp = 0.0
-
-                    for (oct in 0..4) {
-                        hapticVal += noise(phase * freq) * amp
-                        maxAmp += amp
-                        amp *= roughness
-                        freq *= 2.1
+                    if (now - lastVibrationTime > intervalMs) {
+                        playTextureHaptic(currentVel)
+                        lastVibrationTime = now
                     }
-                    hapticVal /= maxAmp
-
-                    if (granularity > 0) {
-                        val absVal = abs(hapticVal)
-                        val sign = sign(hapticVal)
-                        val power = 1.0 + (granularity * 30.0)
-                        hapticVal = sign * absVal.pow(power)
-                        hapticVal *= (1.0 + granularity * 1.5)
-                    }
-
-                    if (state > 0) {
-                        val steps = 1.0 + (1.0 - state) * 15.0
-                        hapticVal = round(hapticVal * steps) / steps
-                    }
-
-                    if (hardness > 0) {
-                        val threshold = 1.0 - (hardness * 0.7)
-                        if (hapticVal > threshold) hapticVal = threshold - (hapticVal - threshold)
-                        else if (hapticVal < -threshold) hapticVal = -threshold - (hapticVal + threshold)
-                        hapticVal *= (1.0 + hardness * 1.2)
-                    }
-
-                    hapticVal = max(-1.0, min(1.0, hapticVal))
-
-                    val finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain
-                    // Amplify heavily for HapticGenerator (needs loud signals to convert to vibration)
-                    var outVal = (hapticVal * finalGain * Short.MAX_VALUE * 1.5).toInt()
-
-                    shortBuffer[i] = outVal.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                 }
-                audioTrack?.write(shortBuffer, 0, shortBuffer.size)
+
+                Thread.sleep(8) // Physics poll rate ~120Hz
             }
         }
         thread?.start()
     }
 
+    private fun playTextureHaptic(velocity: Float) {
+        if (!vibrator.hasVibrator()) return
+
+        // Calculate Amplitude scale (0.0 to 1.0)
+        var amplitudeScale = min(velocity * 0.8f + roughness * 0.5f, 1.0f)
+        
+        // Weight makes it feel heavier/stronger
+        amplitudeScale = min(amplitudeScale * (0.5f + weight * 0.5f), 1.0f)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK, VibrationEffect.Composition.PRIMITIVE_TICK, VibrationEffect.Composition.PRIMITIVE_THUD)) {
+            // Advanced Composition Haptics for Pixel 8
+            val composition = VibrationEffect.startComposition()
+            
+            // Determine primary primitive
+            val primaryPrimitive = when {
+                hardness > 0.7f -> VibrationEffect.Composition.PRIMITIVE_CLICK // Hard, sharp
+                state > 0.5f -> VibrationEffect.Composition.PRIMITIVE_TICK     // Solid, discontinuous
+                weight > 0.6f -> VibrationEffect.Composition.PRIMITIVE_THUD    // Heavy, low freq
+                else -> VibrationEffect.Composition.PRIMITIVE_TICK             // Default
+            }
+
+            // Primitive scale mapping
+            val primitiveScale = amplitudeScale
+            
+            composition.addPrimitive(primaryPrimitive, primitiveScale)
+
+            // Add secondary primitive for granularity/roughness
+            if (granularity > 0.3f || roughness > 0.5f) {
+                val secScale = (granularity * 0.5f + roughness * 0.5f) * primitiveScale
+                composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, min(secScale, 1.0f), 5) // 5ms delay
+            }
+
+            vibrator.vibrate(composition.compose())
+            
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Fallback Amplitude Control
+            val ampInt = (amplitudeScale * 255).toInt().coerceIn(1, 255)
+            val duration = (10 + viscosity * 20).toLong() // Viscosity makes vibration longer/muddier
+            vibrator.vibrate(VibrationEffect.createOneShot(duration, ampInt))
+        } else {
+            // Legacy
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(15)
+        }
+    }
+
     fun stop() {
         isPlaying = false
         thread?.join(500)
-        audioTrack?.stop()
-        audioTrack?.flush()
+        vibrator.cancel()
     }
 
     fun release() {
         stop()
-        hapticGenerator?.release()
-        audioTrack?.release()
-    }
-
-    // Hash and Noise (Simple 1D Value Noise)
-    private fun hash(n: Double): Double {
-        return (sin(n) * 43758.5453123) % 1.0
-    }
-    private fun noise(x: Double): Double {
-        val p = floor(x)
-        val f = x - p
-        val u = f * f * (3.0 - 2.0 * f)
-        return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0
     }
 }
