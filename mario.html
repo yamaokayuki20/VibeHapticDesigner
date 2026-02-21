@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スーパーマリオ風ゲーム</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: 3px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 0 40px rgba(0, 100, 255, 0.15);
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #6b88fe;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #fff;
+            text-align: center;
+        }
+
+        #startScreen h1 {
+            font-size: 2.5rem;
+            color: #e52521;
+            text-shadow: 4px 4px 0 #7a1311, -1px -1px 0 #fff;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+
+        #startScreen .subtitle {
+            font-size: 0.8rem;
+            color: #fbd000;
+            margin-bottom: 60px;
+        }
+
+        #startScreen .press-start {
+            font-size: 0.9rem;
+            animation: blink 1s infinite;
+        }
+
+        #startScreen .controls {
+            font-size: 0.55rem;
+            color: #ddd;
+            line-height: 2.2;
+            margin-top: 40px;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="startScreen">
+        <h1>SUPER<br>MARIO</h1>
+        <div class="subtitle">★ HTML5 EDITION ★</div>
+        <div class="press-start">PRESS ENTER OR OPTIONS TO START</div>
+        <div class="controls">
+            ← → / L-STICK : MOVE &nbsp;&nbsp; SPACE / ↑ / X : JUMP
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // ============================================================
+        //  スーパーマリオ風ゲーム - 完全実装
+        // ============================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+
+        // --- 定数 ---
+        const TILE = 32;
+        const GRAVITY = 0.55;
+        const MAX_FALL = 12;
+        const PLAYER_SPEED = 3.5;
+        const PLAYER_ACCEL = 0.25;
+        const PLAYER_DECEL = 0.15;
+        const JUMP_FORCE = -10.5;
+        const BOUNCE_FORCE = -7;
+
+        // --- 色パレット ---
+        const COLORS = {
+            sky: '#6b88fe',
+            skyGrad1: '#6b88fe',
+            skyGrad2: '#9dbcff',
+            ground: '#c84c0c',
+            groundDark: '#a0380a',
+            groundPattern: '#e0742c',
+            brick: '#c84c0c',
+            brickDark: '#a0380a',
+            brickLight: '#e89050',
+            question: '#fbd000',
+            questionDark: '#c8a000',
+            questionLight: '#fce878',
+            questionMark: '#a0380a',
+            usedBlock: '#888',
+            pipe: '#00a800',
+            pipeDark: '#008000',
+            pipeLight: '#50d050',
+            coinGold: '#fbd000',
+            coinShine: '#fff',
+            coinDark: '#c8a000',
+            // マリオ
+            marioHat: '#e52521',
+            marioSkin: '#fbb882',
+            marioOveralls: '#3f48cc',
+            marioShoes: '#6b3a00',
+            marioHair: '#3f1f00',
+            // 敵
+            goombaBody: '#c8681c',
+            goombaDark: '#8b4513',
+            goombaFeet: '#000',
+            goombaWhite: '#fff',
+            // 旗
+            flagPole: '#888',
+            flagGreen: '#00a800',
+            // 雲
+            cloud: '#fff',
+            cloudShadow: '#d0d8ff',
+            // 丘
+            hillGreen: '#00a800',
+            hillDark: '#008000',
+            // テキスト
+            textWhite: '#fff',
+            textYellow: '#fbd000',
+        };
+
+        // --- ゲーム状態 ---
+        let gameState = 'title'; // title, playing, gameover, clear
+        let score = 0;
+        let coins = 0;
+        let lives = 3;
+        let time = 300;
+        let timeTimer = 0;
+        let cameraX = 0;
+        let animFrame = 0;
+
+        // --- 入力管理 ---
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'Enter' && gameState === 'title') {
+                gameState = 'playing';
+                startScreen.style.display = 'none';
+                resetGame();
+            }
+            if (e.code === 'Enter' && (gameState === 'gameover' || gameState === 'clear')) {
+                resetGame();
+            }
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+                e.preventDefault();
+            }
+        });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        // --- ゲームパッド (DualSense等) ---
+        function updateGamepad() {
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+            let gp = null;
+            for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i]) {
+                    gp = gamepads[i];
+                    break;
+                }
+            }
+            if (!gp) return;
+
+            // DualSense等の標準マッピング:
+            // 0: ×, 1: 〇, 12: D-Pad 上, 14: D-Pad 左, 15: D-Pad 右, 9: Options
+            keys['GamepadJump'] = gp.buttons[0]?.pressed || gp.buttons[1]?.pressed || gp.buttons[12]?.pressed;
+            keys['GamepadLeft'] = gp.buttons[14]?.pressed || (gp.axes[0] < -0.5);
+            keys['GamepadRight'] = gp.buttons[15]?.pressed || (gp.axes[0] > 0.5);
+
+            const startPressed = gp.buttons[9]?.pressed;
+            if (startPressed && !keys['GamepadStartPrev']) {
+                if (gameState === 'title') {
+                    gameState = 'playing';
+                    startScreen.style.display = 'none';
+                    resetGame();
+                } else if (gameState === 'gameover' || gameState === 'clear') {
+                    resetGame();
+                }
+            }
+            keys['GamepadStartPrev'] = startPressed;
+        }
+
+        // --- Canvas リサイズ ---
+        function resizeCanvas() {
+            const maxW = Math.min(window.innerWidth - 20, 800);
+            const maxH = Math.min(window.innerHeight - 20, 480);
+            const ratio = 800 / 480;
+            let w = maxW;
+            let h = w / ratio;
+            if (h > maxH) { h = maxH; w = h * ratio; }
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            canvas.width = 800;
+            canvas.height = 480;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- ステージデータ ---
+        // 0=空, 1=地面, 2=レンガ, 3=ハテナ, 4=パイプ左上, 5=パイプ右上, 6=パイプ左下, 7=パイプ右下
+        // 8=使用済みブロック, 9=地面(下), G=ゴールポール
+        const STAGE_WIDTH = 210;
+        const STAGE_HEIGHT = 15;
+
+        function createStage() {
+            const stage = [];
+            for (let y = 0; y < STAGE_HEIGHT; y++) {
+                stage[y] = new Array(STAGE_WIDTH).fill(0);
+            }
+
+            // 地面 (y=13,14)
+            for (let x = 0; x < STAGE_WIDTH; x++) {
+                stage[13][x] = 1;
+                stage[14][x] = 9;
+            }
+
+            // 穴
+            const holes = [[38, 40], [55, 57], [86, 89]];
+            holes.forEach(([start, end]) => {
+                for (let x = start; x <= end; x++) {
+                    stage[13][x] = 0;
+                    stage[14][x] = 0;
+                }
+            });
+
+            // ハテナブロック
+            const questions = [
+                [8, 9], [12, 9], [14, 9], [14, 5], [16, 9],
+                [48, 9], [52, 9], [52, 5],
+                [65, 9], [68, 9],
+                [95, 9], [100, 9],
+            ];
+            questions.forEach(([x, y]) => { stage[y][x] = 3; });
+
+            // レンガブロック
+            const bricks = [
+                [10, 9], [11, 9], [13, 9], [15, 9],
+                [44, 9], [45, 9], [46, 9],
+                [50, 9], [51, 9], [53, 9], [54, 9],
+                [62, 9], [63, 9], [64, 9], [66, 9], [67, 9],
+                [78, 5], [79, 5], [80, 5], [81, 5], [82, 5], [83, 5], [84, 5],
+                [92, 9], [93, 9], [94, 9],
+                [97, 9], [98, 9], [99, 9],
+            ];
+            bricks.forEach(([x, y]) => { stage[y][x] = 2; });
+
+            // パイプ
+            const pipes = [
+                [22, 11, 2], // x, topY, 高さ(pairの数)
+                [28, 10, 3],
+                [33, 9, 4],
+                [60, 11, 2],
+                [75, 10, 3],
+                [105, 11, 2],
+            ];
+            pipes.forEach(([x, topY, height]) => {
+                stage[topY][x] = 4;
+                stage[topY][x + 1] = 5;
+                for (let h = 1; h < height; h++) {
+                    stage[topY + h][x] = 6;
+                    stage[topY + h][x + 1] = 7;
+                }
+            });
+
+            // 階段（ゴール前）
+            // 階段1
+            for (let step = 0; step < 4; step++) {
+                for (let s = 0; s <= step; s++) {
+                    stage[12 - s][110 + step] = 1;
+                }
+            }
+            // 階段2
+            for (let step = 0; step < 4; step++) {
+                for (let s = 0; s <= step; s++) {
+                    stage[12 - s][117 - step] = 1;
+                }
+            }
+            // 階段3（大きい）
+            for (let step = 0; step < 8; step++) {
+                for (let s = 0; s <= step; s++) {
+                    stage[12 - s][130 + step] = 1;
+                }
+            }
+
+            return stage;
+        }
+
+        let stage = createStage();
+
+        // --- ゴールポール ---
+        const GOAL_X = 140;
+
+        // --- エンティティ ---
+        let player = {};
+        let enemies = [];
+        let items = []; // コインアニメーション等
+        let particles = [];
+        let floatingTexts = [];
+
+        function resetGame() {
+            gameState = 'playing';
+            stage = createStage();
+            score = 0;
+            coins = 0;
+            lives = 3;
+            time = 300;
+            timeTimer = 0;
+            cameraX = 0;
+            spawnPlayer();
+            spawnEnemies();
+            items = [];
+            particles = [];
+            floatingTexts = [];
+        }
+
+        function spawnPlayer() {
+            player = {
+                x: 3 * TILE,
+                y: 11 * TILE,
+                w: 24,
+                h: 30,
+                vx: 0,
+                vy: 0,
+                onGround: false,
+                facing: 1,
+                walkFrame: 0,
+                walkTimer: 0,
+                isDead: false,
+                deathTimer: 0,
+                invincible: 0,
+                isClearing: false,
+                clearSlide: false,
+                clearSlideY: 0,
+            };
+        }
+
+        function spawnEnemies() {
+            enemies = [];
+            const enemyPositions = [
+                [18, 12], [26, 12], [36, 12], [37, 12],
+                [42, 12], [50, 12], [51, 12],
+                [62, 12], [64, 12],
+                [72, 12], [73, 12],
+                [80, 8], [82, 8],
+                [90, 12], [91, 12],
+                [102, 12], [103, 12],
+                [120, 12], [125, 12],
+            ];
+            enemyPositions.forEach(([tx, ty]) => {
+                enemies.push({
+                    x: tx * TILE,
+                    y: ty * TILE,
+                    w: 28,
+                    h: 28,
+                    vx: -1,
+                    alive: true,
+                    squishTimer: 0,
+                    walkFrame: 0,
+                    walkTimer: 0,
+                });
+            });
+        }
+
+        // --- コイン位置 ---
+        let coinPositions = [];
+        function spawnCoins() {
+            coinPositions = [];
+            const coinTiles = [
+                [20, 10], [21, 10],
+                [30, 8], [31, 8], [32, 8],
+                [43, 11], [44, 11], [45, 11],
+                [58, 10], [59, 10],
+                [70, 8], [71, 8], [72, 8],
+                [96, 11], [97, 11],
+                [108, 10], [109, 10],
+                [125, 8], [126, 8], [127, 8],
+            ];
+            coinTiles.forEach(([x, y]) => {
+                coinPositions.push({ x: x * TILE + 8, y: y * TILE + 4, w: 16, h: 24, collected: false, anim: 0 });
+            });
+        }
+        spawnCoins();
+
+        // --- 衝突判定 ---
+        function tileAt(tx, ty) {
+            if (tx < 0 || tx >= STAGE_WIDTH || ty < 0 || ty >= STAGE_HEIGHT) return 0;
+            return stage[ty][tx];
+        }
+
+        function isSolid(tile) {
+            return tile === 1 || tile === 2 || tile === 3 || tile === 8 || tile === 9 ||
+                tile === 4 || tile === 5 || tile === 6 || tile === 7;
+        }
+
+        function entityCollidesTile(entity) {
+            const left = Math.floor(entity.x / TILE);
+            const right = Math.floor((entity.x + entity.w - 1) / TILE);
+            const top = Math.floor(entity.y / TILE);
+            const bottom = Math.floor((entity.y + entity.h - 1) / TILE);
+
+            for (let ty = top; ty <= bottom; ty++) {
+                for (let tx = left; tx <= right; tx++) {
+                    if (isSolid(tileAt(tx, ty))) {
+                        return { tx, ty, tile: tileAt(tx, ty) };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function hitBlock(tx, ty) {
+            const tile = stage[ty][tx];
+            if (tile === 3) {
+                // ハテナブロック → コイン出現
+                stage[ty][tx] = 8;
+                coins++;
+                score += 100;
+                // コインアニメーション
+                items.push({
+                    type: 'coin_pop',
+                    x: tx * TILE + 8,
+                    y: ty * TILE - 8,
+                    vy: -8,
+                    life: 30,
+                });
+                floatingTexts.push({
+                    text: '100',
+                    x: tx * TILE + 8,
+                    y: ty * TILE - 8,
+                    life: 40,
+                });
+                playSound('coin');
+            } else if (tile === 2) {
+                // レンガブロック → 破壊パーティクル
+                stage[ty][tx] = 0;
+                for (let i = 0; i < 6; i++) {
+                    particles.push({
+                        x: tx * TILE + 16,
+                        y: ty * TILE + 16,
+                        vx: (Math.random() - 0.5) * 6,
+                        vy: -Math.random() * 8 - 2,
+                        life: 40,
+                        color: COLORS.brick,
+                        size: 6 + Math.random() * 4,
+                    });
+                }
+                playSound('break');
+            }
+        }
+
+        // --- サウンドエンジン（Web Audio簡易） ---
+        let audioCtx;
+        function getAudioCtx() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return audioCtx;
+        }
+
+        function playSound(type) {
+            try {
+                const ctx = getAudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+                switch (type) {
+                    case 'jump':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(300, now);
+                        osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                        osc.start(now); osc.stop(now + 0.15);
+                        break;
+                    case 'coin':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(988, now);
+                        osc.frequency.setValueAtTime(1319, now + 0.07);
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                        osc.start(now); osc.stop(now + 0.2);
+                        break;
+                    case 'stomp':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(400, now);
+                        osc.frequency.linearRampToValueAtTime(100, now + 0.12);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                        osc.start(now); osc.stop(now + 0.15);
+                        break;
+                    case 'death':
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(400, now);
+                        osc.frequency.linearRampToValueAtTime(100, now + 0.6);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.8);
+                        osc.start(now); osc.stop(now + 0.8);
+                        break;
+                    case 'break':
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(200, now);
+                        osc.frequency.linearRampToValueAtTime(60, now + 0.1);
+                        gain.gain.setValueAtTime(0.1, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.12);
+                        osc.start(now); osc.stop(now + 0.12);
+                        break;
+                    case 'clear':
+                        osc.type = 'square';
+                        const notes = [523, 659, 784, 1047];
+                        notes.forEach((f, i) => {
+                            osc.frequency.setValueAtTime(f, now + i * 0.15);
+                        });
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.linearRampToValueAtTime(0, now + 0.7);
+                        osc.start(now); osc.stop(now + 0.7);
+                        break;
+                }
+            } catch (e) { /* Audio not available */ }
+        }
+
+        // --- プレイヤー更新 ---
+        function updatePlayer() {
+            if (player.isDead) {
+                player.deathTimer++;
+                if (player.deathTimer < 20) {
+                    player.vy = -6;
+                }
+                player.vy += GRAVITY;
+                player.y += player.vy;
+                if (player.deathTimer > 80) {
+                    lives--;
+                    if (lives <= 0) {
+                        gameState = 'gameover';
+                    } else {
+                        spawnPlayer();
+                        spawnEnemies();
+                        spawnCoins();
+                        cameraX = 0;
+                        time = 300;
+                    }
+                }
+                return;
+            }
+
+            if (player.isClearing) {
+                // ゴール演出：ポールを滑り降りる
+                if (!player.clearSlide) {
+                    player.y += 2;
+                    if (player.y >= 12 * TILE) {
+                        player.y = 12 * TILE;
+                        player.clearSlide = true;
+                        player.clearSlideY = 0;
+                    }
+                } else {
+                    player.clearSlideY++;
+                    if (player.clearSlideY > 60) {
+                        gameState = 'clear';
+                    }
+                }
+                return;
+            }
+
+            if (player.invincible > 0) player.invincible--;
+
+            // 水平移動
+            const moveLeft = keys['ArrowLeft'] || keys['KeyA'] || keys['GamepadLeft'];
+            const moveRight = keys['ArrowRight'] || keys['KeyD'] || keys['GamepadRight'];
+
+            if (moveLeft) {
+                player.vx -= PLAYER_ACCEL;
+                if (player.vx < -PLAYER_SPEED) player.vx = -PLAYER_SPEED;
+                player.facing = -1;
+            } else if (moveRight) {
+                player.vx += PLAYER_ACCEL;
+                if (player.vx > PLAYER_SPEED) player.vx = PLAYER_SPEED;
+                player.facing = 1;
+            } else {
+                if (player.vx > 0) { player.vx -= PLAYER_DECEL; if (player.vx < 0) player.vx = 0; }
+                if (player.vx < 0) { player.vx += PLAYER_DECEL; if (player.vx > 0) player.vx = 0; }
+            }
+
+            // 歩行アニメーション
+            if (Math.abs(player.vx) > 0.5 && player.onGround) {
+                player.walkTimer++;
+                if (player.walkTimer > 6) {
+                    player.walkTimer = 0;
+                    player.walkFrame = (player.walkFrame + 1) % 3;
+                }
+            } else if (player.onGround) {
+                player.walkFrame = 0;
+            }
+
+            // ジャンプ
+            if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW'] || keys['GamepadJump']) && player.onGround) {
+                player.vy = JUMP_FORCE;
+                player.onGround = false;
+                playSound('jump');
+            }
+
+            // 重力
+            player.vy += GRAVITY;
+            if (player.vy > MAX_FALL) player.vy = MAX_FALL;
+
+            // X方向の移動と衝突
+            player.x += player.vx;
+            // 左端
+            if (player.x < 0) { player.x = 0; player.vx = 0; }
+            // タイル衝突
+            let col = entityCollidesTile(player);
+            if (col) {
+                if (player.vx > 0) {
+                    player.x = col.tx * TILE - player.w;
+                } else if (player.vx < 0) {
+                    player.x = (col.tx + 1) * TILE;
+                }
+                player.vx = 0;
+            }
+
+            // Y方向の移動と衝突
+            player.y += player.vy;
+            player.onGround = false;
+            col = entityCollidesTile(player);
+            if (col) {
+                if (player.vy > 0) {
+                    // 下に着地
+                    player.y = col.ty * TILE - player.h;
+                    player.vy = 0;
+                    player.onGround = true;
+                } else if (player.vy < 0) {
+                    // 上にぶつかる（ブロック叩き）
+                    player.y = (col.ty + 1) * TILE;
+                    player.vy = 0;
+                    hitBlock(col.tx, col.ty);
+                }
+            }
+
+            // 穴に落ちた
+            if (player.y > STAGE_HEIGHT * TILE + 50) {
+                playerDie();
+            }
+
+            // ゴール判定
+            if (player.x >= GOAL_X * TILE && !player.isClearing) {
+                player.isClearing = true;
+                player.vx = 0;
+                player.vy = 0;
+                score += time * 10;
+                playSound('clear');
+            }
+
+            // カメラ追従
+            const targetCamX = player.x - 300;
+            cameraX += (targetCamX - cameraX) * 0.1;
+            if (cameraX < 0) cameraX = 0;
+            const maxCam = STAGE_WIDTH * TILE - 800;
+            if (cameraX > maxCam) cameraX = maxCam;
+        }
+
+        function playerDie() {
+            if (player.isDead) return;
+            player.isDead = true;
+            player.deathTimer = 0;
+            player.vy = -8;
+            player.vx = 0;
+            playSound('death');
+        }
+
+        // --- 敵更新 ---
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                if (!enemy.alive) {
+                    enemy.squishTimer++;
+                    return;
+                }
+
+                // 歩行アニメ
+                enemy.walkTimer++;
+                if (enemy.walkTimer > 10) {
+                    enemy.walkTimer = 0;
+                    enemy.walkFrame = (enemy.walkFrame + 1) % 2;
+                }
+
+                enemy.x += enemy.vx;
+
+                // タイル衝突で方向転換
+                const checkX = enemy.vx > 0 ? enemy.x + enemy.w : enemy.x;
+                const tx = Math.floor(checkX / TILE);
+                const ty = Math.floor((enemy.y + enemy.h - 4) / TILE);
+                if (isSolid(tileAt(tx, ty))) {
+                    enemy.vx = -enemy.vx;
+                }
+
+                // 崖検出（地面がない場合方向転換）
+                const edgeTx = Math.floor((enemy.x + (enemy.vx > 0 ? enemy.w : 0)) / TILE);
+                const belowTy = Math.floor((enemy.y + enemy.h + 2) / TILE);
+                if (!isSolid(tileAt(edgeTx, belowTy))) {
+                    enemy.vx = -enemy.vx;
+                }
+
+                // 画面外チェック（カメラ付近のみ動く）
+                const dist = Math.abs(enemy.x - player.x);
+                if (dist > 800) return;
+
+                // プレイヤーとの衝突
+                if (!player.isDead && !player.isClearing && player.invincible <= 0) {
+                    if (player.x + player.w > enemy.x + 4 && player.x < enemy.x + enemy.w - 4 &&
+                        player.y + player.h > enemy.y + 4 && player.y < enemy.y + enemy.h) {
+                        // 上から踏んだ？
+                        if (player.vy > 0 && player.y + player.h < enemy.y + enemy.h / 2 + 8) {
+                            // 踏み！
+                            enemy.alive = false;
+                            enemy.squishTimer = 0;
+                            player.vy = BOUNCE_FORCE;
+                            score += 200;
+                            floatingTexts.push({
+                                text: '200',
+                                x: enemy.x,
+                                y: enemy.y - 10,
+                                life: 40,
+                            });
+                            playSound('stomp');
+                        } else {
+                            // ダメージ
+                            playerDie();
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- コイン更新 ---
+        function updateCoins() {
+            coinPositions.forEach(coin => {
+                if (coin.collected) return;
+                coin.anim += 0.08;
+
+                // プレイヤーとの衝突
+                if (!player.isDead && !player.isClearing &&
+                    player.x + player.w > coin.x && player.x < coin.x + coin.w &&
+                    player.y + player.h > coin.y && player.y < coin.y + coin.h) {
+                    coin.collected = true;
+                    coins++;
+                    score += 50;
+                    floatingTexts.push({ text: '50', x: coin.x, y: coin.y - 10, life: 30 });
+                    playSound('coin');
+                }
+            });
+        }
+
+        // --- アイテム・パーティクル更新 ---
+        function updateItems() {
+            items = items.filter(item => {
+                item.life--;
+                if (item.type === 'coin_pop') {
+                    item.vy += 0.5;
+                    item.y += item.vy;
+                }
+                return item.life > 0;
+            });
+
+            particles = particles.filter(p => {
+                p.vy += 0.3;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                return p.life > 0;
+            });
+
+            floatingTexts = floatingTexts.filter(ft => {
+                ft.y -= 1;
+                ft.life--;
+                return ft.life > 0;
+            });
+        }
+
+        // --- 時間管理 ---
+        function updateTime() {
+            if (gameState !== 'playing' || player.isDead || player.isClearing) return;
+            timeTimer++;
+            if (timeTimer >= 30) {
+                timeTimer = 0;
+                time--;
+                if (time <= 0) {
+                    time = 0;
+                    playerDie();
+                }
+            }
+        }
+
+        // ============================================================
+        //  描画
+        // ============================================================
+
+        // --- 背景描画 ---
+        function drawBackground() {
+            // 空グラデーション
+            const grad = ctx.createLinearGradient(0, 0, 0, 480);
+            grad.addColorStop(0, COLORS.skyGrad1);
+            grad.addColorStop(1, COLORS.skyGrad2);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 800, 480);
+
+            // 雲（parallax）
+            const clouds = [
+                [200, 60, 1.2], [600, 40, 1.5], [1100, 70, 1.0],
+                [1700, 50, 1.3], [2400, 80, 1.1], [3000, 45, 1.4],
+                [3600, 65, 1.2], [4200, 55, 1.0],
+            ];
+            clouds.forEach(([cx, cy, scale]) => {
+                drawCloud(cx - cameraX * 0.3, cy, scale);
+            });
+
+            // 丘（parallax）
+            const hills = [
+                [100, 0.8], [800, 1.2], [1600, 0.7], [2500, 1.0],
+                [3300, 0.9], [4000, 1.1],
+            ];
+            hills.forEach(([hx, scale]) => {
+                drawHill(hx - cameraX * 0.5, scale);
+            });
+        }
+
+        function drawCloud(x, y, scale) {
+            if (x < -100 || x > 900) return;
+            ctx.fillStyle = COLORS.cloudShadow;
+            drawCloudShape(x, y + 2, scale);
+            ctx.fillStyle = COLORS.cloud;
+            drawCloudShape(x, y, scale);
+        }
+
+        function drawCloudShape(x, y, s) {
+            ctx.beginPath();
+            ctx.arc(x, y, 20 * s, 0, Math.PI * 2);
+            ctx.arc(x + 22 * s, y - 8 * s, 24 * s, 0, Math.PI * 2);
+            ctx.arc(x + 48 * s, y, 18 * s, 0, Math.PI * 2);
+            ctx.arc(x + 24 * s, y + 4 * s, 22 * s, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawHill(x, scale) {
+            const baseY = 13 * TILE;
+            if (x < -200 || x > 1000) return;
+            ctx.fillStyle = COLORS.hillDark;
+            ctx.beginPath();
+            ctx.moveTo(x - 60 * scale, baseY);
+            ctx.quadraticCurveTo(x, baseY - 70 * scale, x + 60 * scale, baseY);
+            ctx.fill();
+            ctx.fillStyle = COLORS.hillGreen;
+            ctx.beginPath();
+            ctx.moveTo(x - 55 * scale, baseY);
+            ctx.quadraticCurveTo(x, baseY - 65 * scale, x + 55 * scale, baseY);
+            ctx.fill();
+        }
+
+        // --- タイル描画 ---
+        function drawTiles() {
+            const startTx = Math.max(0, Math.floor(cameraX / TILE) - 1);
+            const endTx = Math.min(STAGE_WIDTH, startTx + 27);
+
+            for (let ty = 0; ty < STAGE_HEIGHT; ty++) {
+                for (let tx = startTx; tx < endTx; tx++) {
+                    const tile = stage[ty][tx];
+                    if (tile === 0) continue;
+                    const sx = tx * TILE - cameraX;
+                    const sy = ty * TILE;
+                    drawTile(tile, sx, sy, tx, ty);
+                }
+            }
+        }
+
+        function drawTile(tile, x, y, tx, ty) {
+            switch (tile) {
+                case 1: // 地面上面
+                    ctx.fillStyle = COLORS.ground;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.groundPattern;
+                    ctx.fillRect(x + 2, y + 2, 12, 12);
+                    ctx.fillRect(x + 18, y + 18, 12, 12);
+                    ctx.fillStyle = COLORS.groundDark;
+                    ctx.fillRect(x, y, TILE, 2);
+                    break;
+                case 9: // 地面下面
+                    ctx.fillStyle = COLORS.ground;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.groundDark;
+                    ctx.fillRect(x + 4, y + 4, 10, 10);
+                    ctx.fillRect(x + 20, y + 16, 8, 10);
+                    break;
+                case 2: // レンガ
+                    ctx.fillStyle = COLORS.brick;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.brickLight;
+                    ctx.fillRect(x + 1, y + 1, 14, 14);
+                    ctx.fillRect(x + 17, y + 1, 14, 14);
+                    ctx.fillRect(x + 1, y + 17, 14, 14);
+                    ctx.fillRect(x + 17, y + 17, 14, 14);
+                    ctx.fillStyle = COLORS.brickDark;
+                    ctx.fillRect(x, y + 15, TILE, 2);
+                    ctx.fillRect(x + 15, y, 2, TILE);
+                    break;
+                case 3: // ハテナブロック
+                    const pulse = Math.sin(animFrame * 0.08) * 0.15 + 0.85;
+                    ctx.fillStyle = COLORS.question;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.questionLight;
+                    ctx.fillRect(x + 2, y + 2, TILE - 4, 2);
+                    ctx.fillRect(x + 2, y + 2, 2, TILE - 4);
+                    ctx.fillStyle = COLORS.questionDark;
+                    ctx.fillRect(x + 2, y + TILE - 4, TILE - 4, 2);
+                    ctx.fillRect(x + TILE - 4, y + 2, 2, TILE - 4);
+                    // ?マーク
+                    ctx.fillStyle = COLORS.questionMark;
+                    ctx.globalAlpha = pulse;
+                    ctx.font = 'bold 18px "Press Start 2P", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('?', x + TILE / 2, y + TILE / 2 + 7);
+                    ctx.globalAlpha = 1;
+                    ctx.textAlign = 'left';
+                    break;
+                case 8: // 使用済みブロック
+                    ctx.fillStyle = COLORS.usedBlock;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = '#777';
+                    ctx.fillRect(x + 2, y + 2, TILE - 4, 2);
+                    ctx.fillRect(x + 2, y + 2, 2, TILE - 4);
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(x + 2, y + TILE - 4, TILE - 4, 2);
+                    break;
+                case 4: // パイプ左上
+                    ctx.fillStyle = COLORS.pipe;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.pipeLight;
+                    ctx.fillRect(x, y, 6, TILE);
+                    ctx.fillStyle = COLORS.pipeDark;
+                    ctx.fillRect(x + TILE - 4, y, 4, TILE);
+                    // パイプ縁
+                    ctx.fillStyle = COLORS.pipeLight;
+                    ctx.fillRect(x - 4, y, TILE + 4, 8);
+                    ctx.fillStyle = COLORS.pipeDark;
+                    ctx.fillRect(x - 4, y + 6, TILE + 4, 2);
+                    break;
+                case 5: // パイプ右上
+                    ctx.fillStyle = COLORS.pipe;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.pipeLight;
+                    ctx.fillRect(x, y, 6, TILE);
+                    ctx.fillStyle = COLORS.pipeDark;
+                    ctx.fillRect(x + TILE - 4, y, 4, TILE);
+                    // パイプ縁
+                    ctx.fillStyle = COLORS.pipeLight;
+                    ctx.fillRect(x, y, TILE + 4, 8);
+                    ctx.fillStyle = COLORS.pipeDark;
+                    ctx.fillRect(x, y + 6, TILE + 4, 2);
+                    break;
+                case 6: // パイプ左下
+                case 7: // パイプ右下
+                    ctx.fillStyle = COLORS.pipe;
+                    ctx.fillRect(x, y, TILE, TILE);
+                    ctx.fillStyle = COLORS.pipeLight;
+                    ctx.fillRect(x + (tile === 6 ? 2 : 0), y, 6, TILE);
+                    ctx.fillStyle = COLORS.pipeDark;
+                    ctx.fillRect(x + TILE - (tile === 7 ? 2 : 4), y, 4, TILE);
+                    break;
+            }
+        }
+
+        // --- プレイヤー描画（ピクセルアート風） ---
+        function drawPlayer() {
+            if (player.isDead && player.deathTimer > 80) return;
+            if (player.invincible > 0 && Math.floor(player.invincible / 3) % 2 === 0) return;
+
+            const px = player.x - cameraX;
+            const py = player.y;
+            const f = player.facing;
+
+            ctx.save();
+            ctx.translate(px + player.w / 2, py);
+            ctx.scale(f, 1);
+            ctx.translate(-player.w / 2, 0);
+
+            const frame = player.onGround ? player.walkFrame : -1; // -1 = jump
+
+            // 帽子
+            ctx.fillStyle = COLORS.marioHat;
+            ctx.fillRect(4, 0, 18, 6);
+            ctx.fillRect(2, 6, 20, 4);
+
+            // 顔
+            ctx.fillStyle = COLORS.marioSkin;
+            ctx.fillRect(4, 10, 16, 8);
+
+            // 目
+            ctx.fillStyle = '#000';
+            ctx.fillRect(14, 12, 3, 3);
+
+            // 髪
+            ctx.fillStyle = COLORS.marioHair;
+            ctx.fillRect(2, 8, 4, 6);
+
+            // 体（オーバーオール）
+            ctx.fillStyle = COLORS.marioOveralls;
+            if (frame === 1) {
+                ctx.fillRect(2, 18, 20, 6);
+            } else {
+                ctx.fillRect(4, 18, 16, 6);
+            }
+
+            // ボタン
+            ctx.fillStyle = COLORS.coinGold;
+            ctx.fillRect(10, 19, 3, 3);
+
+            // 足
+            ctx.fillStyle = COLORS.marioShoes;
+            if (!player.onGround) {
+                // ジャンプポーズ
+                ctx.fillRect(2, 24, 8, 6);
+                ctx.fillRect(14, 24, 8, 6);
+            } else if (frame === 0) {
+                ctx.fillRect(4, 24, 7, 6);
+                ctx.fillRect(13, 24, 7, 6);
+            } else if (frame === 1) {
+                ctx.fillRect(0, 24, 8, 6);
+                ctx.fillRect(16, 24, 8, 6);
+            } else {
+                ctx.fillRect(4, 24, 7, 6);
+                ctx.fillRect(13, 24, 7, 6);
+            }
+
+            ctx.restore();
+        }
+
+        // --- 敵描画 ---
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                if (!enemy.alive && enemy.squishTimer > 20) return;
+
+                const ex = enemy.x - cameraX;
+                const ey = enemy.y;
+                if (ex < -40 || ex > 840) return;
+
+                ctx.save();
+                if (!enemy.alive) {
+                    // 潰れ
+                    ctx.translate(ex, ey + 20);
+                    ctx.scale(1, 0.3);
+                    ctx.translate(0, -20);
+                } else {
+                    ctx.translate(ex, ey);
+                }
+
+                // 体
+                ctx.fillStyle = COLORS.goombaBody;
+                ctx.beginPath();
+                ctx.arc(14, 16, 14, Math.PI, 0);
+                ctx.fillRect(0, 16, 28, 12);
+                ctx.fill();
+
+                // 顔下部
+                ctx.fillStyle = COLORS.goombaDark;
+                ctx.fillRect(2, 20, 24, 8);
+
+                // 目
+                ctx.fillStyle = COLORS.goombaWhite;
+                ctx.fillRect(6, 12, 6, 6);
+                ctx.fillRect(16, 12, 6, 6);
+                ctx.fillStyle = '#000';
+                const eyeOff = enemy.walkFrame === 0 ? 0 : 2;
+                ctx.fillRect(8 + eyeOff, 14, 3, 4);
+                ctx.fillRect(18 + eyeOff, 14, 3, 4);
+
+                // 足
+                ctx.fillStyle = COLORS.goombaFeet;
+                if (enemy.alive) {
+                    if (enemy.walkFrame === 0) {
+                        ctx.fillRect(2, 26, 8, 4);
+                        ctx.fillRect(18, 26, 8, 4);
+                    } else {
+                        ctx.fillRect(0, 26, 8, 4);
+                        ctx.fillRect(20, 26, 8, 4);
+                    }
+                }
+
+                ctx.restore();
+            });
+        }
+
+        // --- コイン描画 ---
+        function drawCoins() {
+            coinPositions.forEach(coin => {
+                if (coin.collected) return;
+                const cx = coin.x - cameraX;
+                const cy = coin.y;
+                if (cx < -20 || cx > 820) return;
+
+                // 回転アニメーション
+                const scaleX = Math.abs(Math.cos(coin.anim));
+                ctx.save();
+                ctx.translate(cx + 8, cy + 12);
+                ctx.scale(scaleX, 1);
+
+                ctx.fillStyle = COLORS.coinGold;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 8, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = COLORS.coinDark;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 5, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = COLORS.coinGold;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 4, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 光沢
+                if (scaleX > 0.5) {
+                    ctx.fillStyle = COLORS.coinShine;
+                    ctx.globalAlpha = 0.6;
+                    ctx.fillRect(-2, -8, 2, 6);
+                    ctx.globalAlpha = 1;
+                }
+
+                ctx.restore();
+            });
+        }
+
+        // --- ゴールポール描画 ---
+        function drawGoalPole() {
+            const gx = GOAL_X * TILE - cameraX;
+            if (gx < -20 || gx > 820) return;
+
+            // ポール
+            ctx.fillStyle = COLORS.flagPole;
+            ctx.fillRect(gx + 14, 3 * TILE, 4, 10 * TILE);
+
+            // ポールトップの玉
+            ctx.fillStyle = COLORS.coinGold;
+            ctx.beginPath();
+            ctx.arc(gx + 16, 3 * TILE, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 旗
+            const flagWave = Math.sin(animFrame * 0.1) * 3;
+            ctx.fillStyle = COLORS.flagGreen;
+            ctx.beginPath();
+            ctx.moveTo(gx + 18, 3 * TILE + 8);
+            ctx.lineTo(gx + 48 + flagWave, 3 * TILE + 20);
+            ctx.lineTo(gx + 18, 3 * TILE + 32);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#00c800';
+            ctx.beginPath();
+            ctx.moveTo(gx + 18, 3 * TILE + 12);
+            ctx.lineTo(gx + 40 + flagWave, 3 * TILE + 20);
+            ctx.lineTo(gx + 18, 3 * TILE + 28);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // --- エフェクト描画 ---
+        function drawEffects() {
+            // コインポップ
+            items.forEach(item => {
+                if (item.type === 'coin_pop') {
+                    const ix = item.x - cameraX;
+                    ctx.fillStyle = COLORS.coinGold;
+                    ctx.beginPath();
+                    ctx.arc(ix + 8, item.y, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = COLORS.coinShine;
+                    ctx.fillRect(ix + 5, item.y - 5, 3, 4);
+                }
+            });
+
+            // パーティクル
+            particles.forEach(p => {
+                const ppx = p.x - cameraX;
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 40;
+                ctx.fillRect(ppx - p.size / 2, p.y - p.size / 2, p.size, p.size);
+                ctx.globalAlpha = 1;
+            });
+
+            // フローティングテキスト
+            floatingTexts.forEach(ft => {
+                const ftx = ft.x - cameraX;
+                ctx.fillStyle = COLORS.textWhite;
+                ctx.font = '10px "Press Start 2P", monospace';
+                ctx.globalAlpha = Math.min(ft.life / 10, 1);
+                ctx.fillText(ft.text, ftx, ft.y);
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        // --- HUD ---
+        function drawHUD() {
+            ctx.fillStyle = COLORS.textWhite;
+            ctx.font = '12px "Press Start 2P", monospace';
+            ctx.textAlign = 'left';
+
+            // MARIO
+            ctx.fillText('MARIO', 30, 25);
+            ctx.fillText(String(score).padStart(6, '0'), 30, 42);
+
+            // コイン
+            ctx.fillStyle = COLORS.coinGold;
+            ctx.fillRect(220, 30, 10, 14);
+            ctx.fillStyle = COLORS.textWhite;
+            ctx.fillText('x' + String(coins).padStart(2, '0'), 236, 42);
+
+            // WORLD
+            ctx.textAlign = 'center';
+            ctx.fillText('WORLD', 480, 25);
+            ctx.fillText('1-1', 480, 42);
+
+            // TIME
+            ctx.textAlign = 'right';
+            ctx.fillText('TIME', 770, 25);
+            ctx.fillStyle = time <= 50 ? '#e53935' : COLORS.textWhite;
+            ctx.fillText(String(time), 770, 42);
+
+            // 残機
+            ctx.textAlign = 'left';
+            ctx.fillStyle = COLORS.textWhite;
+            ctx.fillText('♥ x' + lives, 620, 42);
+
+            ctx.textAlign = 'left';
+        }
+
+        // --- ゲームオーバー / クリア画面 ---
+        function drawOverlay() {
+            if (gameState === 'gameover') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, 800, 480);
+                ctx.fillStyle = '#e53935';
+                ctx.font = '28px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', 400, 220);
+                ctx.fillStyle = COLORS.textWhite;
+                ctx.font = '12px "Press Start 2P", monospace';
+                ctx.fillText('PRESS ENTER OR OPTIONS TO RETRY', 400, 280);
+                ctx.textAlign = 'left';
+            }
+
+            if (gameState === 'clear') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, 800, 480);
+                ctx.fillStyle = COLORS.textYellow;
+                ctx.font = '24px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('COURSE CLEAR!', 400, 190);
+                ctx.fillStyle = COLORS.textWhite;
+                ctx.font = '14px "Press Start 2P", monospace';
+                ctx.fillText('SCORE: ' + String(score).padStart(6, '0'), 400, 240);
+                ctx.font = '12px "Press Start 2P", monospace';
+                ctx.fillText('PRESS ENTER OR OPTIONS TO PLAY AGAIN', 400, 300);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        // ============================================================
+        //  ゲームループ
+        // ============================================================
+
+        function update() {
+            updateGamepad();
+            if (gameState === 'playing') {
+                updatePlayer();
+                updateEnemies();
+                updateCoins();
+                updateItems();
+                updateTime();
+            }
+            animFrame++;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, 800, 480);
+            drawBackground();
+            drawTiles();
+            drawGoalPole();
+            drawCoins();
+            drawEnemies();
+            drawPlayer();
+            drawEffects();
+            drawHUD();
+            drawOverlay();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 初期化
+        gameLoop();
+    </script>
+</body>
+
+</html>
