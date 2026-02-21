@@ -107,7 +107,9 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isGenerating
-                )
+                ) {
+                    Text("AIで質感を生成")
+                }
                 if (aiStatus.isNotEmpty()) {
                     Text(aiStatus, fontSize = 12.sp, color = if (aiStatus.startsWith("✅")) Color.Green else Color.Red)
                 }
