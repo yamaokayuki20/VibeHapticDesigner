@@ -56,6 +56,11 @@ class HapticEngine(context: Context) {
             AudioManager.AUDIO_SESSION_ID_GENERATE
         )
 
+        // Ensure media volume is high enough for HapticGenerator to trigger
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
+
         // Attach Pixel 8 HD Haptics (HapticGenerator) to this specific audio session
         if (HapticGenerator.isAvailable()) {
             hapticGenerator = HapticGenerator.create(audioTrack!!.audioSessionId).apply {
@@ -144,9 +149,10 @@ class HapticEngine(context: Context) {
                     hapticVal = max(-1.0, min(1.0, hapticVal))
 
                     val finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain
-                    val outVal = (hapticVal * finalGain * Short.MAX_VALUE).toInt()
+                    // Amplify heavily for HapticGenerator (needs loud signals to convert to vibration)
+                    var outVal = (hapticVal * finalGain * Short.MAX_VALUE * 1.5).toInt()
 
-                    shortBuffer[i] = outVal.toShort().coerceIn(Short.MIN_VALUE, Short.MAX_VALUE)
+                    shortBuffer[i] = outVal.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                 }
                 audioTrack?.write(shortBuffer, 0, shortBuffer.size)
             }

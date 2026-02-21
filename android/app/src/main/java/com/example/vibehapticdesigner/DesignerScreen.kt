@@ -117,21 +117,25 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
         }
 
         // Drag Pad
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF1A1A1A))
         ) {
-            var offsetX by remember { mutableFloatStateOf(0f) }
-            var offsetY by remember { mutableFloatStateOf(0f) }
+            val padWidth = maxWidth.value
+            val padHeight = maxHeight.value
+            val puckSize = 80f
+
+            var offsetX by remember { mutableFloatStateOf(padWidth / 2f - puckSize / 2f) }
+            var offsetY by remember { mutableFloatStateOf(padHeight / 2f - puckSize / 2f) }
             var isDragging by remember { mutableStateOf(false) }
 
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                    .size(80.dp)
+                    .offset(x = offsetX.dp, y = offsetY.dp)
+                    .size(puckSize.dp)
                     .clip(CircleShape)
                     .background(if (isDragging) Color(0xFFFF5722) else Color(0xFF0070CC))
                     .pointerInput(Unit) {
@@ -143,9 +147,6 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
                             onDragEnd = { 
                                 isDragging = false
                                 hapticEngine.onDragEnd()
-                                // Snap back to center
-                                offsetX = (size.width - 80.dp.toPx()) / 2
-                                offsetY = (size.height - 80.dp.toPx()) / 2
                             },
                             onDragCancel = { 
                                 isDragging = false
@@ -153,8 +154,15 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
                             },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                offsetX = (offsetX + dragAmount.x).coerceIn(0f, size.width.toFloat() - 80.dp.toPx())
-                                offsetY = (offsetY + dragAmount.y).coerceIn(0f, size.height.toFloat() - 80.dp.toPx())
+                                // Convert drag amount from pixels to dp roughly (density)
+                                val density = change.position.density // Note: rough approximation if needed, but pointerInput gives pixels usually.
+                                // Actually detectDragGestures dragAmount is in pixels. 
+                                // Let's simplify by using density to convert
+                                val dragXdp = dragAmount.x / this.density
+                                val dragYdp = dragAmount.y / this.density
+
+                                offsetX = (offsetX + dragXdp).coerceIn(0f, padWidth - puckSize)
+                                offsetY = (offsetY + dragYdp).coerceIn(0f, padHeight - puckSize)
                                 
                                 // Velocity calculation for engine
                                 val vX = dragAmount.x / change.uptimeMillis
