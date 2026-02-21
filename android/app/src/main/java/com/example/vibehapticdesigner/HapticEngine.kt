@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import kotlin.math.*
 
 class HapticEngine(context: Context) {
@@ -18,6 +19,15 @@ class HapticEngine(context: Context) {
 
     private var isPlaying = false
     private var thread: Thread? = null
+
+    // Debug tracking
+    var debugText = "Using Reliable Vibrator API"
+        private set(value) {
+            field = value
+            onDebugUpdate?.invoke(value)
+            Log.d("HapticEngine", value)
+        }
+    var onDebugUpdate: ((String) -> Unit)? = null
 
     // Params
     private var granularity = 0f
@@ -44,7 +54,9 @@ class HapticEngine(context: Context) {
     fun onDragStart() {}
     fun onDragMove(vX: Float, vY: Float) {
         val dist = sqrt(vX * vX + vY * vY)
-        targetVelocity = min(dist * 5.0f, 5.0f)
+        // With raw pixel deltas, dist is usually 1.0 to 100.0.
+        // Map it to a reasonable velocity scale for Vibrator
+        targetVelocity = min(dist * 0.1f, 5.0f)
     }
     fun onDragEnd() {
         targetVelocity = 0f
