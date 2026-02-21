@@ -52,13 +52,17 @@
             font-size: 0.9rem;
             user-select: none;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-            transition: transform 0.1s;
+            transition: transform 0.1s, box-shadow 0.1s;
         }
 
         #puck:active {
             cursor: grabbing;
             transform: scale(0.95);
             background: #ff5722;
+        }
+
+        #puck.collision {
+            box-shadow: 0 0 25px rgba(255, 87, 34, 0.9), 0 0 50px rgba(255, 152, 0, 0.5);
         }
 
         .control-group {
@@ -296,11 +300,33 @@
         let rawVelocity = 0;
         let smoothedVelocity = 0;
 
+        // --- 衝突検出用パラメータ ---
+        let prevVelocity = 0;           // 前フレームの速度
+        let impulseEnvelope = 0;        // インパルス応答のエンベロープ（0.0〜1.0）
+        let impulseIntensity = 0;       // 衝突の強度（エンベロープ初期値）
+        let impulsePhase = 0;           // インパルス波形用の独立位相
+        const COLLISION_ACCEL_THRESHOLD = 0.8;  // 加速度（減速）の閾値
+        const IMPULSE_DECAY_RATE = 0.92;        // エンベロープ減衰係数（1フレームごと）
+        let collisionFlashTimer = 0;
+
+        function triggerCollision(intensity) {
+            // 衝突強度を0.0〜1.0にクランプ
+            impulseIntensity = Math.min(intensity, 1.0);
+            impulseEnvelope = impulseIntensity;
+            impulsePhase = 0; // 衝突時点から位相リセット
+
+            // 視覚フィードバック
+            puck.classList.add('collision');
+            clearTimeout(collisionFlashTimer);
+            collisionFlashTimer = setTimeout(() => puck.classList.remove('collision'), 150);
+        }
+
         function startDrag(clientX, clientY) {
             isDragging = true;
             lastX = clientX;
             lastY = clientY;
             lastTime = performance.now();
+            prevVelocity = 0;
         }
 
         function moveDrag(clientX, clientY) {
@@ -310,12 +336,9 @@
             const dt = now - lastTime;
 
             if (dt > 0) {
-                // 移動距離から速度を計算
                 const dx = clientX - lastX;
                 const dy = clientY - lastY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-
-                // ピクセル/ミリ秒 を 0.0 ~ 5.0 程度のスケールにマッピング
                 rawVelocity = Math.min((dist / dt) * 1.5, 5.0);
             }
 
@@ -325,10 +348,21 @@
 
             // 見た目のオブジェクトをカーソルに追従させる
             const rect = touchPad.getBoundingClientRect();
-            let px = clientX - rect.left - 40; // 40はpuckの半径
+            let px = clientX - rect.left - 40;
             let py = clientY - rect.top - 40;
+
+            // 境界衝突検出：クランプ前の座標を保持
+            const rawPx = px;
+            const rawPy = py;
             px = Math.max(0, Math.min(px, rect.width - 80));
             py = Math.max(0, Math.min(py, rect.height - 80));
+
+            // 境界にぶつかった場合（クランプが発生した場合）→ 衝突トリガー
+            const hitBoundary = (rawPx !== px || rawPy !== py);
+            if (hitBoundary && rawVelocity > 0.3) {
+                triggerCollision(Math.min(rawVelocity / 3.0, 1.0));
+            }
+
             puck.style.left = px + 'px';
             puck.style.top = py + 'px';
         }
@@ -347,13 +381,23 @@
         window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX, e.touches[0].clientY), { passive: false });
         window.addEventListener('touchend', endDrag);
 
-        // 物理演算ループ（速度の減衰と平滑化）
+        // 物理演算ループ（速度の減衰、平滑化、加速度ベース衝突検出）
         function updatePhysics() {
             if (!isDragging || (performance.now() - lastTime > 50)) {
-                // マウスが止まった、あるいは離した場合は速度を減衰
                 rawVelocity *= 0.7;
             }
-            // 音声にノイズが乗らないように速度変化を滑らかにする
+
+            // 加速度ベースの衝突検出：急激な減速を検出
+            const deceleration = prevVelocity - rawVelocity;
+            if (deceleration > COLLISION_ACCEL_THRESHOLD && prevVelocity > 0.5) {
+                triggerCollision(Math.min(deceleration / 3.0, 1.0));
+            }
+            prevVelocity = rawVelocity;
+
+            // インパルスエンベロープの減衰
+            impulseEnvelope *= IMPULSE_DECAY_RATE;
+            if (impulseEnvelope < 0.001) impulseEnvelope = 0;
+
             smoothedVelocity += (rawVelocity - smoothedVelocity) * 0.2;
             requestAnimationFrame(updatePhysics);
         }
@@ -416,12 +460,17 @@
                 // 動いていない時は振動を完全に止めるためのゲイン（音量）エンベロープ
                 let movementGain = Math.min(currentVel * 1.5, 1.0);
 
+                // インパルス応答用パラメータ（バッファ処理開始時にスナップショット）
+                let currentImpulseEnv = impulseEnvelope;
+                const impulseFreq = 40 + (weight * 300);  // 衝突音の周波数（weightで変化）
+                // 減衰定数：hardnessが高いほど鋭く短い減衰、低いほど柔らかく長い減衰
+                const impulseSampleDecay = Math.pow(0.9995 - hardness * 0.0008, 1);
+
                 for (let i = 0; i < output.length; i++) {
+                    // ========== 1. 連続テクスチャ波形（既存） ==========
                     const baseFreq = 20 + (weight * 160);
                     const drag = viscosity > 0 ? (noise(phase * 0.1) * viscosity * 0.8) : 0;
 
-                    // オブジェクトが早く動くほど、ノイズ空間を早く進む（位相の更新幅が大きくなる）
-                    // 速度が0の場合は位相が進まない＝振動のテクスチャが停止する
                     let scrollSpeed = Math.max(currentVel, 0.01);
                     phase += (baseFreq * scrollSpeed * (1 - drag)) / sampleRate;
 
@@ -464,9 +513,51 @@
                     if (hapticVal > 1.0) hapticVal = 1.0;
                     if (hapticVal < -1.0) hapticVal = -1.0;
 
-                    // 基礎の重さゲインに、手の動き（movementGain）を乗算する
-                    const finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain;
-                    output[i] = hapticVal * finalGain;
+                    const textureGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain;
+                    let textureOut = hapticVal * textureGain;
+
+                    // ========== 2. インパルス応答波形（衝突時） ==========
+                    let impulseOut = 0;
+                    if (currentImpulseEnv > 0.001) {
+                        impulsePhase += impulseFreq / sampleRate;
+
+                        // ベース：減衰正弦波
+                        let impVal = Math.sin(impulsePhase * 2.0 * Math.PI);
+
+                        // roughnessでノイズを加算（ザラザラした衝突音）
+                        impVal += noise(impulsePhase * 8.0) * roughness * 0.6;
+
+                        // granularityで波形を鋭くする（パチッとしたインパルス感）
+                        if (granularity > 0) {
+                            impVal = Math.sign(impVal) * Math.pow(Math.abs(impVal), 1.0 + granularity * 3.0);
+                        }
+
+                        // hardnessでウェーブフォルディング（金属的な倍音）
+                        if (hardness > 0.1) {
+                            const foldThresh = 1.0 - hardness * 0.5;
+                            if (impVal > foldThresh) impVal = foldThresh - (impVal - foldThresh);
+                            else if (impVal < -foldThresh) impVal = -foldThresh - (impVal + foldThresh);
+                            impVal *= (1.0 + hardness * 0.8);
+                        }
+
+                        // stateでビットクラッシュ（不連続な衝撃感）
+                        if (state > 0) {
+                            const impSteps = 2.0 + (1.0 - state) * 14.0;
+                            impVal = Math.round(impVal * impSteps) / impSteps;
+                        }
+
+                        impVal = Math.max(-1.0, Math.min(1.0, impVal));
+
+                        // エンベロープ適用（サンプル単位で減衰）
+                        impulseOut = impVal * currentImpulseEnv;
+                        currentImpulseEnv *= impulseSampleDecay;
+                    }
+
+                    // ========== 3. テクスチャ + インパルスをミックス ==========
+                    let mixed = textureOut + impulseOut;
+                    if (mixed > 1.0) mixed = 1.0;
+                    if (mixed < -1.0) mixed = -1.0;
+                    output[i] = mixed;
                 }
             };
 
