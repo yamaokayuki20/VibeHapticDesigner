@@ -127,6 +127,7 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
             val padWidth = maxWidth.value
             val padHeight = maxHeight.value
             val puckSize = 80f
+            val density = LocalDensity.current.density
 
             var offsetX by remember { mutableFloatStateOf(padWidth / 2f - puckSize / 2f) }
             var offsetY by remember { mutableFloatStateOf(padHeight / 2f - puckSize / 2f) }
@@ -154,12 +155,9 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
                             },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                // Convert drag amount from pixels to dp roughly (density)
-                                val density = change.position.density // Note: rough approximation if needed, but pointerInput gives pixels usually.
-                                // Actually detectDragGestures dragAmount is in pixels. 
-                                // Let's simplify by using density to convert
-                                val dragXdp = dragAmount.x / this.density
-                                val dragYdp = dragAmount.y / this.density
+                                
+                                val dragXdp = dragAmount.x / density
+                                val dragYdp = dragAmount.y / density
 
                                 offsetX = (offsetX + dragXdp).coerceIn(0f, padWidth - puckSize)
                                 offsetY = (offsetY + dragYdp).coerceIn(0f, padHeight - puckSize)
