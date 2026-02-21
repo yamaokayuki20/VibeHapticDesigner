@@ -1,2 +1,6 @@
 # VibeHapticDesigner
 Hapticsを自然言語から生成できるモジュールです
+
+
+https://github.com/hatodove22/ProceduralHaptics.git
+ライブラリ
