@@ -1,0 +1,22 @@
+[project]
+name = "vibe-haptic-designer"
+version = "0.1.0"
+description = "DualSense haptics + telemetry toolkit"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydualsense",
+]
+
+[project.scripts]
+vibe = "vibe_haptic_designer.interfaces.cli.main:main"
+
+[tool.uv.sources]
+pydualsense = { path = "third_party/pydualsense", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vibe_haptic_designer"]

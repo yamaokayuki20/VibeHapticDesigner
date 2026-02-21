@@ -1,0 +1,9 @@
+from __future__ import annotations
+
+import runpy
+from pathlib import Path
+
+
+if __name__ == "__main__":
+    script_path = Path(__file__).resolve().parent / "scripts" / "play_haptic_audio.py"
+    runpy.run_path(str(script_path), run_name="__main__")
