@@ -1,0 +1,2 @@
+# VibeHapticDesigner
+Hapticsを自然言語から生成できるモジュールです
