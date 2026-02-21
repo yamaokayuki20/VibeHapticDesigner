@@ -175,8 +175,9 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
                                 offsetY = (offsetY + dragYdp).coerceIn(0f, padHeight - puckSize)
                                 
                                 // Velocity calculation for engine
-                                val vX = dragAmount.x / change.uptimeMillis
-                                val vY = dragAmount.y / change.uptimeMillis
+                                // dragAmount gives pixel deltas per frame
+                                val vX = dragAmount.x
+                                val vY = dragAmount.y
                                 hapticEngine.onDragMove(vX, vY)
                             }
                         )

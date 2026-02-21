@@ -112,8 +112,9 @@ class HapticEngine(context: Context) {
     fun onDragStart() {}
     fun onDragMove(vX: Float, vY: Float) {
         val dist = sqrt(vX * vX + vY * vY)
-        // map velocity to 0..5 approx
-        targetVelocity = min(dist * 5.0f, 5.0f)
+        // dist is usually 1.0 to 50.0 pixels per frame.
+        // We want targetVelocity to be 0.0 to 3.0 approx for good dynamic range.
+        targetVelocity = min(dist * 0.1f, 3.0f)
     }
     fun onDragEnd() {
         targetVelocity = 0f
@@ -214,8 +215,11 @@ class HapticEngine(context: Context) {
     }
 
     // Hash and Noise (Simple 1D Value Noise)
+    private fun fract(x: Double): Double = x - floor(x)
+
     private fun hash(n: Double): Double {
-        return (sin(n) * 43758.5453123) % 1.0
+        // Use fract instead of % 1.0 to avoid negative DC offset in Kotlin
+        return fract(sin(n) * 43758.5453123)
     }
     private fun noise(x: Double): Double {
         val p = floor(x)
