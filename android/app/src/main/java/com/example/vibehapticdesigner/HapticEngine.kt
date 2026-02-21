@@ -131,19 +131,17 @@ class HapticEngine(context: Context) {
                 smoothedVelocity += (targetVelocity - smoothedVelocity) * 0.1f
                 targetVelocity *= 0.8f // Auto decay if no move events
 
+                // Ensure we don't calculate on 0 velocity
                 val currentVel = smoothedVelocity
                 
                 // Keep the track awake with a tiny amount of noise even when still
-                val isMoving = currentVel > 0.01f
-                val movementGain = if (isMoving) min(currentVel * 2.0f, 1.0f) else 0.05f
+                val isMoving = currentVel > 0.05f
 
                 for (i in shortBuffer.indices) {
-                    // Shift frequencies up into the perceptible haptic range (50Hz - 250Hz)
                     val baseFreq = 50.0 + (weight * 150.0) 
                     val drag = if (viscosity > 0) noise(phase * 0.1) * viscosity * 0.8 else 0.0
 
-                    // Fast scroll speed for actual movement, slow drift when still
-                    val scrollSpeed = if (isMoving) max(currentVel.toDouble(), 0.5) else 0.0
+                    val scrollSpeed = if (isMoving) max(currentVel.toDouble(), 0.1) else 0.01
                     phase += (baseFreq * scrollSpeed * (1.0 - drag)) / sampleRate
 
                     var hapticVal = 0.0
@@ -179,24 +177,20 @@ class HapticEngine(context: Context) {
                         hapticVal *= (1.0 + hardness * 1.2)
                     }
 
-                    hapticVal = max(-1.0, min(1.0, hapticVal))
+                    hapticVal = if (hapticVal.isNaN()) 0.0 else hapticVal
 
-                    hapticVal = max(-1.0, min(1.0, hapticVal))
-
-                    // Movement gain logic: require at least SOME speed to feel
-                    val isMoving = currentVel > 0.05f
-                    // drastically increase the mapping of velocity to gain
-                    val movementGain = if (isMoving) min(currentVel * 3.0f, 1.0f) else 0f
-
+                    // Movement gain logic
+                    val movementGain = if (isMoving) min(currentVel * 3.0f, 1.0f) else 0.0f
                     val finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain
                     
-                    // The generated hapticVal needs to be extremely punchy
-                    val mixedVal = hapticVal.toFloat() * finalGain
+                    // Add a tiny baseline noise to prevent complete digital silence 
+                    // (helps keep Audio/Haptic session alive without being intrusive)
+                    val baselineNoise = (hash(phase * 100.0) * 0.05).toFloat()
+                    val mixedVal = (hapticVal.toFloat() * finalGain) + baselineNoise
                     
                     // Amplify heavily for HapticGenerator (needs loud signals to convert to vibration)
-                    // Multiply by 4.0 to force hard clipping, which creates the sharp square-wave 
-                    // transients that HapticGenerators love for strong tactile clicks.
-                    val outVal = (mixedVal * Short.MAX_VALUE * 4.0f).toInt()
+                    // We multiply by 3.0 to hit upper peaks where HapticGenerator actually triggers.
+                    val outVal = (mixedVal * Short.MAX_VALUE * 3.0f).toInt()
 
                     shortBuffer[i] = outVal.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                 }
