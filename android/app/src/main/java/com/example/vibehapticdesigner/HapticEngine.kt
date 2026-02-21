@@ -39,11 +39,12 @@ class HapticEngine(context: Context) {
 
     // Const
     private val sampleRate = 48000
+    // drastically reduce buffer size for lower latency
     private val bufferSize = AudioTrack.getMinBufferSize(
         sampleRate,
         AudioFormat.CHANNEL_OUT_MONO,
         AudioFormat.ENCODING_PCM_16BIT
-    )
+    ).let { if (it > 0) it / 2 else 2048 }.coerceAtLeast(1024)
 
     init {
         initAudioTrack(context)
@@ -142,8 +143,11 @@ class HapticEngine(context: Context) {
                     val baseFreq = 50.0 + (weight * 150.0) 
                     val drag = if (viscosity > 0) noise(phase * 0.1) * viscosity * 0.8 else 0.0
 
-                    val scrollSpeed = if (isMoving) max(currentVel.toDouble(), 0.1) else 0.01
-                    phase += (baseFreq * scrollSpeed * (1.0 - drag)) / sampleRate
+                    // Stop the phase entirely if not moving to avoid noise and hum
+                    val scrollSpeed = if (isMoving) max(currentVel.toDouble(), 0.05) else 0.0
+                    if (isMoving) {
+                        phase += (baseFreq * scrollSpeed * (1.0 - drag)) / sampleRate
+                    }
 
                     var hapticVal = 0.0
                     var amp = 1.0
@@ -178,22 +182,19 @@ class HapticEngine(context: Context) {
                         hapticVal *= (1.0 + hardness * 1.2)
                     }
 
-                    hapticVal = if (hapticVal.isNaN()) 0.0 else hapticVal
+                    // Aggressive square wave logic for HapticGenerator to feel it
+                    // The sharper the transient (jump from -1 to 1), the better it feels.
+                    hapticVal = if (hapticVal > 0.0) 1.0 else -1.0
 
-                    // Movement gain logic
-                    val movementGain = if (isMoving) min(currentVel * 3.0f, 1.0f) else 0.0f
                     val finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain
                     
-                    // Add a tiny baseline noise to prevent complete digital silence 
-                    // (helps keep Audio/Haptic session alive without being intrusive)
-                    val baselineNoise = (hash(phase * 100.0) * 0.05).toFloat()
-                    val mixedVal = (hapticVal.toFloat() * finalGain) + baselineNoise
+                    // No baseline noise to keep it silent when not moving
+                    val mixedVal = hapticVal.toFloat() * finalGain
                     
-                    // Amplify heavily for HapticGenerator (needs loud signals to convert to vibration)
-                    // We multiply by 3.0 to hit upper peaks where HapticGenerator actually triggers.
-                    val outVal = (mixedVal * Short.MAX_VALUE * 3.0f).toInt()
+                    // Output a clean scaled wave without extreme amplification that might clip badly inside the audio engine
+                    val outVal = (mixedVal * Short.MAX_VALUE).toInt()
 
-                    shortBuffer[i] = outVal.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                    shortBuffer[i] = if (isMoving) outVal.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort() else 0.toShort()
                 }
                 audioTrack?.write(shortBuffer, 0, shortBuffer.size)
             }
