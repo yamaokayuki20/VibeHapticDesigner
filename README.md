@@ -6,6 +6,5 @@ https://github.com/hatodove22/ProceduralHaptics.git
 ライブラリ
 https://hatodove22.github.io/ProceduralHaptics/
 デモ
-AIzaSyCxOsItPlDTN1bD7m2MteDvJpQ6NFlRtZA
 
 公開しないでね↑
