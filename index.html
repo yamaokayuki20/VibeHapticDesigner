@@ -2,10 +2,27 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>DualSense HD Haptics POC</title>
+  <title>Interactive HD Haptics POC</title>
   <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #f0f0f0; padding: 20px; max-width: 700px; margin: 0 auto; }
     h1 { font-size: 1.5rem; text-align: center; border-bottom: 2px solid #00439c; padding-bottom: 10px; color: #fff; }
+    
+    /* インタラクティブパッドのスタイル */
+    #touchPad {
+        width: 100%; height: 200px; background: #1a1a1a; 
+        border: 2px dashed #444; border-radius: 12px; margin-bottom: 20px;
+        position: relative; overflow: hidden; touch-action: none;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+    }
+    #puck {
+        width: 80px; height: 80px; background: #0070cc;
+        border-radius: 50%; position: absolute; top: 60px; left: calc(50% - 40px);
+        cursor: grab; display: flex; align-items: center; justify-content: center;
+        font-weight: bold; font-size: 0.9rem; user-select: none;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: transform 0.1s;
+    }
+    #puck:active { cursor: grabbing; transform: scale(0.95); background: #ff5722; }
+
     .control-group { margin-bottom: 12px; background: #222; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
     label { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 0.9rem; color: #66b2ff;}
     input[type="range"] { width: 100%; cursor: pointer; accent-color: #0070cc; }
@@ -21,7 +38,11 @@
 </head>
 <body>
 
-  <h1>PS5 DualSense™ HD Haptics Generator</h1>
+  <h1>インタラクティブ 触覚デザインツール</h1>
+
+  <div id="touchPad">
+      <div id="puck">Drag Me!</div>
+  </div>
 
   <div class="control-group">
     <label><span>粒感 (滑らか 0)</span> <span>粒感 (ツブツブ 1)</span></label>
@@ -56,28 +77,90 @@
   <div class="control-group">
     <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
     <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">引きずり抵抗。ノイズ進行を不規則に遅らせ、泥やスライムをかき混ぜるような抵抗感をシミュレート。</div>
-  </div>
-
-  <div class="control-group">
-    <label><span>速度 (遅)</span> <span>速度 (速)</span></label>
-    <input type="range" id="velocity" min="0.1" max="5" step="0.01" value="1.0">
-    <div class="desc">表面をなぞるスピードそのもの。</div>
-  </div>
-
-  <div class="control-group">
-    <label><span>加速度 (減速)</span> <span>加速度 (加速)</span></label>
-    <input type="range" id="acceleration" min="-1" max="1" step="0.01" value="0.0">
-    <div class="desc">時間経過による速度変化。</div>
+    <div class="desc">引きずり抵抗。泥やスライムをかき混ぜるような抵抗感をシミュレート。</div>
   </div>
 
   <div class="buttons">
-    <button id="playBtn">Play / 触覚再生</button>
+    <button id="playBtn">Play / エンジン起動</button>
     <button id="recordBtn" disabled>Record / 録音 (WAV)</button>
   </div>
 
   <script>
-    // ブラウザのセキュリティブロックを回避するため、ScriptProcessorNodeを使用
+    // --- ドラッグ操作と物理演算のロジック ---
+    const puck = document.getElementById('puck');
+    const touchPad = document.getElementById('touchPad');
+    let isDragging = false;
+    let lastX = 0, lastY = 0, lastTime = 0;
+    
+    // 音声エンジンに渡すための動的パラメータ
+    let rawVelocity = 0;
+    let smoothedVelocity = 0;
+
+    function startDrag(clientX, clientY) {
+        isDragging = true;
+        lastX = clientX;
+        lastY = clientY;
+        lastTime = performance.now();
+    }
+
+    function moveDrag(clientX, clientY) {
+        if (!isDragging) return;
+        
+        const now = performance.now();
+        const dt = now - lastTime;
+        
+        if (dt > 0) {
+            // 移動距離から速度を計算
+            const dx = clientX - lastX;
+            const dy = clientY - lastY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // ピクセル/ミリ秒 を 0.0 ~ 5.0 程度のスケールにマッピング
+            rawVelocity = Math.min((dist / dt) * 1.5, 5.0);
+        }
+
+        lastX = clientX;
+        lastY = clientY;
+        lastTime = now;
+
+        // 見た目のオブジェクトをカーソルに追従させる
+        const rect = touchPad.getBoundingClientRect();
+        let px = clientX - rect.left - 40; // 40はpuckの半径
+        let py = clientY - rect.top - 40;
+        px = Math.max(0, Math.min(px, rect.width - 80));
+        py = Math.max(0, Math.min(py, rect.height - 80));
+        puck.style.left = px + 'px';
+        puck.style.top = py + 'px';
+    }
+
+    function endDrag() {
+        isDragging = false;
+    }
+
+    // マウスイベント
+    puck.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', endDrag);
+
+    // タッチイベント（スマホ・タブレット用）
+    puck.addEventListener('touchstart', e => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+    window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
+    window.addEventListener('touchend', endDrag);
+
+    // 物理演算ループ（速度の減衰と平滑化）
+    function updatePhysics() {
+        if (!isDragging || (performance.now() - lastTime > 50)) {
+            // マウスが止まった、あるいは離した場合は速度を減衰
+            rawVelocity *= 0.7; 
+        }
+        // 音声にノイズが乗らないように速度変化を滑らかにする
+        smoothedVelocity += (rawVelocity - smoothedVelocity) * 0.2;
+        requestAnimationFrame(updatePhysics);
+    }
+    updatePhysics();
+
+
+    // --- 音響/触覚生成エンジン (ScriptProcessor) ---
     function hash(n) { return (Math.sin(n) * 43758.5453123) % 1; }
     function noise(x) {
         const p = Math.floor(x);
@@ -91,7 +174,6 @@
     let isPlaying = false;
     let mediaRecorder, chunks = [];
     let phase = 0;
-    let time = 0;
 
     async function initAudio() {
         if (audioCtx) return;
@@ -114,14 +196,12 @@
         const gainNode = audioCtx.createGain();
         gainNode.gain.value = 0;
         
-        // 外部ファイル読み込み不要のScriptProcessorを生成
         scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
         
         scriptNode.onaudioprocess = function(audioProcessingEvent) {
             const output = audioProcessingEvent.outputBuffer.getChannelData(0);
             const sampleRate = audioCtx.sampleRate;
 
-            // スライダーの値をリアルタイムで取得
             const val = id => parseFloat(document.getElementById(id).value);
             const granularity = val('granularity');
             const roughness = val('roughness');
@@ -129,18 +209,21 @@
             const hardness = val('hardness');
             const weight = val('weight');
             const viscosity = val('viscosity');
-            const velocity = val('velocity');
-            const accel = val('acceleration');
+
+            // ドラッグによる動的ベロシティを取得
+            let currentVel = smoothedVelocity;
+            
+            // 動いていない時は振動を完全に止めるためのゲイン（音量）エンベロープ
+            let movementGain = Math.min(currentVel * 1.5, 1.0);
 
             for (let i = 0; i < output.length; i++) {
-                time += 1 / sampleRate;
-
-                let currentSpeed = velocity * (1.0 + accel * time * 0.5);
-                if (currentSpeed < 0) currentSpeed = 0;
-                
                 const baseFreq = 20 + (weight * 160); 
                 const drag = viscosity > 0 ? (noise(phase * 0.1) * viscosity * 0.8) : 0;
-                phase += (baseFreq * currentSpeed * (1 - drag)) / sampleRate;
+                
+                // オブジェクトが早く動くほど、ノイズ空間を早く進む（位相の更新幅が大きくなる）
+                // 速度が0の場合は位相が進まない＝振動のテクスチャが停止する
+                let scrollSpeed = Math.max(currentVel, 0.01);
+                phase += (baseFreq * scrollSpeed * (1 - drag)) / sampleRate;
 
                 let hapticVal = 0;
                 let amp = 1.0;
@@ -181,7 +264,8 @@
                 if (hapticVal > 1.0) hapticVal = 1.0;
                 if (hapticVal < -1.0) hapticVal = -1.0;
 
-                const finalGain = 0.5 + ((1.0 - weight) * 0.5);
+                // 基礎の重さゲインに、手の動き（movementGain）を乗算する
+                const finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain;
                 output[i] = hapticVal * finalGain;
             }
         };
@@ -202,9 +286,10 @@
 
         if (isPlaying) {
             window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
-            document.getElementById('playBtn').textContent = 'Play / 触覚再生';
+            document.getElementById('playBtn').textContent = 'Play / エンジン起動';
             document.getElementById('playBtn').classList.remove('playing');
         } else {
+            // エンジン起動後は、マウスの動き（movementGain）で音量が制御される
             window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.05);
             document.getElementById('playBtn').textContent = 'Stop / 停止';
             document.getElementById('playBtn').classList.add('playing');
