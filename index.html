@@ -128,16 +128,10 @@
                   let currentSpeed = velocity * (1.0 + accel * this.time * 0.5);
                   if (currentSpeed < 0) currentSpeed = 0;
                   
-                  // DualSense(VCA)向けチューニング: 
-                  // 再生可能帯域が広いため、20Hz(ズンッ) 〜 180Hz(ビリィィ) までダイナミックに可変
                   const baseFreq = 20 + (weight * 160); 
-                  
                   const drag = viscosity > 0 ? (noise(this.phase * 0.1) * viscosity * 0.8) : 0;
-                  
                   this.phase += (baseFreq * currentSpeed * (1 - drag)) / sampleRate;
 
-                  // フラクタル・ブラウン運動 (fBm)
-                  // DualSenseは高周波のザラつきを綺麗に鳴らせるのでオクターブを5層に拡張
                   let hapticVal = 0;
                   let amp = 1.0;
                   let freq = 1.0;
@@ -151,25 +145,19 @@
                   }
                   hapticVal /= maxAmp;
 
-                  // 粒感 (Granularity) - VCA向け調整:
-                  // 連続した波を極端に尖らせて「カチッ」「チッ」という独立したインパルス（粒）に変換
                   if (granularity > 0) {
                       let absVal = Math.abs(hapticVal);
                       let sign = Math.sign(hapticVal);
-                      // VCAは鋭い波形に瞬時に反応するため、累乗をさらに上げて針のような波形にする
                       let power = 1.0 + (granularity * 30.0); 
                       hapticVal = sign * Math.pow(absVal, power);
-                      // 音量（振幅）の補正：細くなったパルスを強調
                       hapticVal *= (1.0 + granularity * 1.5); 
                   }
 
-                  // 液体ー固体 (State): 量子化（ゴリゴリ感）
                   if (state > 0) {
                       const steps = 1.0 + (1.0 - state) * 15.0;
                       hapticVal = Math.round(hapticVal * steps) / steps;
                   }
 
-                  // 柔らかいー硬い (Hardness): ウェーブフォールディング
                   if (hardness > 0) {
                       const threshold = 1.0 - (hardness * 0.7);
                       if (hapticVal > threshold) {
@@ -180,11 +168,9 @@
                       hapticVal *= (1.0 + hardness * 1.2);
                   }
 
-                  // クリッピング防止
                   if (hapticVal > 1.0) hapticVal = 1.0;
                   if (hapticVal < -1.0) hapticVal = -1.0;
 
-                  // 最終的な音量調整（重い＝振幅が大きい）
                   const finalGain = 0.5 + ((1.0 - weight) * 0.5);
                   channel[i] = hapticVal * finalGain;
               }
@@ -203,37 +189,49 @@
       if (audioCtx) return;
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       
-      const blob = new Blob([workletCode], { type: 'application/javascript' });
-      const workletUrl = URL.createObjectURL(blob);
-      await audioCtx.audioWorklet.addModule(workletUrl);
+      try {
+        // BlobではなくData URIを使用することで、ローカルファイル(file://)制限を回避
+        const dataUri = "data:application/javascript;charset=utf-8," + encodeURIComponent(workletCode);
+        await audioCtx.audioWorklet.addModule(dataUri);
 
-      workletNode = new AudioWorkletNode(audioCtx, 'haptic-processor');
+        workletNode = new AudioWorkletNode(audioCtx, 'haptic-processor');
 
-      const dest = audioCtx.createMediaStreamDestination();
-      mediaRecorder = new MediaRecorder(dest.stream);
-      mediaRecorder.ondataavailable = e => chunks.push(e.data);
-      mediaRecorder.onstop = e => {
-        const outBlob = new Blob(chunks, { type: 'audio/wav' });
-        chunks = [];
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(outBlob);
-        a.download = 'dualsense_haptics.wav';
-        a.click();
-      };
-      
-      document.getElementById('recordBtn').disabled = false;
+        const dest = audioCtx.createMediaStreamDestination();
+        mediaRecorder = new MediaRecorder(dest.stream);
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = e => {
+          const outBlob = new Blob(chunks, { type: 'audio/wav' });
+          chunks = [];
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(outBlob);
+          a.download = 'dualsense_haptics.wav';
+          a.click();
+        };
+        
+        document.getElementById('recordBtn').disabled = false;
 
-      const gainNode = audioCtx.createGain();
-      gainNode.gain.value = 0;
-      workletNode.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      gainNode.connect(dest);
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0;
+        workletNode.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        gainNode.connect(dest);
 
-      window.masterGain = gainNode;
+        window.masterGain = gainNode;
+        console.log("Audio Engine Initialized Successfully.");
+      } catch (err) {
+        console.error("AudioWorkletの読み込みに失敗しました: ", err);
+        alert("エラーが発生しました。詳細はブラウザの開発者ツール(F12)のConsoleをご確認ください。");
+      }
     }
 
     async function togglePlay() {
+      // 初期化処理
       if (!audioCtx) await initAudio();
+
+      // ブラウザの仕様でAudioContextがサスペンドされている場合は再開する
+      if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
 
       if (isPlaying) {
         window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
