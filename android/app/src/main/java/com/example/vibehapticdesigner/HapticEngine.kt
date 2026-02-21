@@ -15,6 +15,15 @@ class HapticEngine(context: Context) {
     private var isPlaying = false
     private var thread: Thread? = null
 
+    // Debug tracking
+    var debugText = "Initializing Engine..."
+        private set(value) {
+            field = value
+            onDebugUpdate?.invoke(value)
+            Log.d("HapticEngine", value)
+        }
+    var onDebugUpdate: ((String) -> Unit)? = null
+
     // Params
     private var granularity = 0f
     private var roughness = 0.2f
@@ -41,41 +50,53 @@ class HapticEngine(context: Context) {
     }
 
     private fun initAudioTrack(context: Context) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        
-        // Android 12+ requires specific routing for Haptics to Audio
-        audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION) // Commonly used for haptic audio
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setHapticChannelsMuted(false) // CRITICAL for Android 12+ Audio-Haptics
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setSampleRate(sampleRate)
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufferSize * 2)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
-            .build()
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            
+            // USAGE_MEDIA is the most reliable for Pixel 8 audio-coupled haptics
+            audioTrack = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setHapticChannelsMuted(false) // CRITICAL for Android 12+ Audio-Haptics
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(sampleRate)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferSize * 2)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
+                .build()
 
-        // Force media volume to max to ensure haptic signal is strong enough
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
-        audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxVolume, 0)
-        
-        // Attach Pixel 8 HD Haptics (HapticGenerator) to this specific audio session
-        if (HapticGenerator.isAvailable() && audioTrack != null) {
-            hapticGenerator = HapticGenerator.create(audioTrack!!.audioSessionId).apply {
-                enabled = true
+            if (audioTrack?.state != AudioTrack.STATE_INITIALIZED) {
+                debugText = "AudioTrack Init Failed! State: ${audioTrack?.state}"
+                return
             }
-            Log.d("HapticEngine", "HapticGenerator attached successfully!")
-        } else {
-            Log.w("HapticEngine", "HapticGenerator not available on this device.")
+
+            // Force media volume to max to ensure haptic signal is strong enough
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
+            
+            // Attach Pixel 8 HD Haptics (HapticGenerator) to this specific audio session
+            if (HapticGenerator.isAvailable() && audioTrack != null) {
+                hapticGenerator = HapticGenerator.create(audioTrack!!.audioSessionId)
+                if (hapticGenerator != null) {
+                    hapticGenerator!!.enabled = true
+                    debugText = "HapticGenerator Attached! (AudioTrack OK)"
+                } else {
+                    debugText = "HapticGenerator Supported but Creation Failed"
+                }
+            } else {
+                debugText = "HapticGenerator NOT Supported on this OS/Device."
+            }
+        } catch (e: Exception) {
+            debugText = "Exception: ${e.message}"
         }
     }
 

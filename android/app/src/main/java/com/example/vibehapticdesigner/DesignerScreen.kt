@@ -37,7 +37,18 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
     var state by remember { mutableFloatStateOf(0f) }
     var hardness by remember { mutableFloatStateOf(0f) }
     var weight by remember { mutableFloatStateOf(0.5f) }
-    var viscosity by remember { mutableFloatStateOf(0f) }
+    var viscosity by remember { mutableFloatStateOf(0.0f) }
+
+    var debugText by remember { mutableStateOf(hapticEngine.debugText) }
+
+    DisposableEffect(hapticEngine) {
+        hapticEngine.onDebugUpdate = { newText ->
+            debugText = newText
+        }
+        onDispose {
+            hapticEngine.onDebugUpdate = null
+        }
+    }
 
     // Sync parameters to engine
     LaunchedEffect(granularity, roughness, state, hardness, weight, viscosity) {
@@ -194,6 +205,15 @@ fun DesignerScreen(hapticEngine: HapticEngine) {
         ) {
             Text(if (isPlaying) "Stop / 停止" else "Play / エンジン起動", fontSize = 18.sp)
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "DEBUG: $debugText",
+            color = Color.Yellow,
+            fontSize = 12.sp,
+            modifier = Modifier.fillMaxWidth().padding(8.dp)
+        )
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
