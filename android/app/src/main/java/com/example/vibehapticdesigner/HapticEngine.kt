@@ -62,82 +62,113 @@ class HapticEngine(context: Context) {
         targetVelocity = 0f
     }
 
+    // Hash and Noise for procedural texture synthesis
+    private fun fract(x: Double): Double = x - floor(x)
+
+    private fun hash(n: Double): Double {
+        return fract(sin(n) * 43758.5453123)
+    }
+    private fun noise(x: Double): Double {
+        val p = floor(x)
+        val f = x - p
+        val u = f * f * (3.0 - 2.0 * f)
+        return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0
+    }
+
     fun start() {
         if (isPlaying) return
         isPlaying = true
 
         thread = Thread {
+            var phase = 0.0
+            
             while (isPlaying) {
+                val loopStartTime = System.currentTimeMillis()
+                
                 // Smooth velocity
                 smoothedVelocity += (targetVelocity - smoothedVelocity) * 0.1f
                 targetVelocity *= 0.8f // Auto decay if no move events
 
                 val currentVel = smoothedVelocity
                 
-                // Only vibrate if moving fast enough
+                // Only generate texture if moving
                 if (currentVel > 0.05f) {
-                    val now = System.currentTimeMillis()
                     
-                    // Interval between haptic pulses depends on weight and velocity
-                    // High weight = slower pulses (deep rumbles), fast velocity = faster pulses
-                    val baseIntervalMs = 20.0 + (weight * 60.0)
-                    val intervalMs = max(baseIntervalMs / currentVel, 8.0).toLong()
+                    // Parameters to frequency/interval and amplitude mapping
+                    val drag = if (viscosity > 0) noise(phase * 0.1) * viscosity * 0.8 else 0.0
+                    val scrollSpeed = max(currentVel.toDouble(), 0.02)
+                    
+                    // How fast the "texture bumps" arrive (spatial frequency)
+                    val baseFreq = 10.0 + (weight * 40.0) + (roughness * 20.0)
+                    
+                    // Advance virtual phase over the texture
+                    val phaseDelta = (baseFreq * scrollSpeed * (1.0 - drag)) / 60.0 // Assuming ~60Hz poll rate
+                    phase += phaseDelta
 
-                    if (now - lastVibrationTime > intervalMs) {
-                        playTextureHaptic(currentVel)
-                        lastVibrationTime = now
+                    // If we crossed an integer boundary, we hit a "bump" in the texture
+                    if (floor(phase) > floor(phase - phaseDelta)) {
+                        
+                        // Modulate amplitude based on noise to make it feel organic, not a perfect buzz
+                        val bumpVal = abs(noise(phase * (1.0 + granularity * 5.0)))
+                        
+                        // Scale amplitude
+                        val amplitudeScale = min((currentVel * 0.5f) + (bumpVal.toFloat() * roughness), 1.0f)
+
+                        playTextureBump(amplitudeScale)
                     }
                 }
 
-                Thread.sleep(8) // Physics poll rate ~120Hz
+                // Sleep to maintain ~60Hz logic loop (about 16ms)
+                val elapsed = System.currentTimeMillis() - loopStartTime
+                val sleepTime = 16L - elapsed
+                if (sleepTime > 0) {
+                    Thread.sleep(sleepTime)
+                }
             }
         }
         thread?.start()
     }
 
-    private fun playTextureHaptic(velocity: Float) {
+    private fun playTextureBump(amplitudeScale: Float) {
         if (!vibrator.hasVibrator()) return
 
-        // Calculate Amplitude scale (0.0 to 1.0)
-        var amplitudeScale = min(velocity * 0.8f + roughness * 0.5f, 1.0f)
-        
-        // Weight makes it feel heavier/stronger
-        amplitudeScale = min(amplitudeScale * (0.5f + weight * 0.5f), 1.0f)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK, VibrationEffect.Composition.PRIMITIVE_TICK, VibrationEffect.Composition.PRIMITIVE_THUD)) {
-            // Advanced Composition Haptics for Pixel 8
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && vibrator.areAllPrimitivesSupported(
+                VibrationEffect.Composition.PRIMITIVE_CLICK, 
+                VibrationEffect.Composition.PRIMITIVE_TICK, 
+                VibrationEffect.Composition.PRIMITIVE_THUD,
+                VibrationEffect.Composition.PRIMITIVE_LOW_TICK
+            )) {
+                
             val composition = VibrationEffect.startComposition()
             
-            // Determine primary primitive
+            // Choose primary primitive based on state/hardness/weight
             val primaryPrimitive = when {
-                hardness > 0.7f -> VibrationEffect.Composition.PRIMITIVE_CLICK // Hard, sharp
-                state > 0.5f -> VibrationEffect.Composition.PRIMITIVE_TICK     // Solid, discontinuous
-                weight > 0.6f -> VibrationEffect.Composition.PRIMITIVE_THUD    // Heavy, low freq
-                else -> VibrationEffect.Composition.PRIMITIVE_TICK             // Default
+                hardness > 0.6f && state < 0.3f -> VibrationEffect.Composition.PRIMITIVE_CLICK // Hard solid: sharp click
+                weight > 0.6f -> VibrationEffect.Composition.PRIMITIVE_THUD    // Heavy: deep thud
+                viscosity > 0.5f -> VibrationEffect.Composition.PRIMITIVE_LOW_TICK // Muddy/Viscous: dull low tick
+                else -> VibrationEffect.Composition.PRIMITIVE_TICK             // Default texture: light tick
             }
 
-            // Primitive scale mapping
-            val primitiveScale = amplitudeScale
-            
-            composition.addPrimitive(primaryPrimitive, primitiveScale)
+            // Primitive scale mapping (0.0 to 1.0)
+            composition.addPrimitive(primaryPrimitive, amplitudeScale)
 
-            // Add secondary primitive for granularity/roughness
-            if (granularity > 0.3f || roughness > 0.5f) {
-                val secScale = (granularity * 0.5f + roughness * 0.5f) * primitiveScale
-                composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, min(secScale, 1.0f), 5) // 5ms delay
+            // Add secondary primitive for high granularity/roughness (crispy texture)
+            if (granularity > 0.5f) {
+                // adding a tiny delayed click makes it feel "sandpapery" or granular
+                composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, amplitudeScale * 0.5f, 5) 
             }
 
             vibrator.vibrate(composition.compose())
             
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Fallback Amplitude Control
+            // Fallback for non-Pixel8 or older devices
             val ampInt = (amplitudeScale * 255).toInt().coerceIn(1, 255)
-            val duration = (10 + viscosity * 20).toLong() // Viscosity makes vibration longer/muddier
+            val duration = if (viscosity > 0.5f) 15L else 5L // Sticky feels longer, Hard feels shorter
             vibrator.vibrate(VibrationEffect.createOneShot(duration, ampInt))
         } else {
             // Legacy
             @Suppress("DEPRECATION")
-            vibrator.vibrate(15)
+            vibrator.vibrate(5)
         }
     }
 
