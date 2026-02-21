@@ -1,316 +1,609 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>Interactive HD Haptics POC</title>
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #f0f0f0; padding: 20px; max-width: 700px; margin: 0 auto; }
-    h1 { font-size: 1.5rem; text-align: center; border-bottom: 2px solid #00439c; padding-bottom: 10px; color: #fff; }
-    
-    /* インタラクティブパッドのスタイル */
-    #touchPad {
-        width: 100%; height: 200px; background: #1a1a1a; 
-        border: 2px dashed #444; border-radius: 12px; margin-bottom: 20px;
-        position: relative; overflow: hidden; touch-action: none;
-        box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
-    }
-    #puck {
-        width: 80px; height: 80px; background: #0070cc;
-        border-radius: 50%; position: absolute; top: 60px; left: calc(50% - 40px);
-        cursor: grab; display: flex; align-items: center; justify-content: center;
-        font-weight: bold; font-size: 0.9rem; user-select: none;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: transform 0.1s;
-    }
-    #puck:active { cursor: grabbing; transform: scale(0.95); background: #ff5722; }
 
-    .control-group { margin-bottom: 12px; background: #222; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    label { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: bold; font-size: 0.9rem; color: #66b2ff;}
-    input[type="range"] { width: 100%; cursor: pointer; accent-color: #0070cc; }
-    .buttons { display: flex; gap: 10px; margin-top: 25px; }
-    button { flex: 1; padding: 14px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
-    #playBtn { background: #0070cc; color: white; }
-    #playBtn.playing { background: #e53935; }
-    #recordBtn { background: #555; color: white; }
-    #recordBtn.recording { background: #ff9800; animation: pulse 1s infinite; color: black; }
-    .desc { font-size: 0.8rem; color: #aaa; margin-top: 5px; line-height: 1.3; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-  </style>
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive HD Haptics POC</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #121212;
+            color: #f0f0f0;
+            padding: 20px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            text-align: center;
+            border-bottom: 2px solid #00439c;
+            padding-bottom: 10px;
+            color: #fff;
+        }
+
+        /* インタラクティブパッドのスタイル */
+        #touchPad {
+            width: 100%;
+            height: 200px;
+            background: #1a1a1a;
+            border: 2px dashed #444;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+        }
+
+        #puck {
+            width: 80px;
+            height: 80px;
+            background: #0070cc;
+            border-radius: 50%;
+            position: absolute;
+            top: 60px;
+            left: calc(50% - 40px);
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.1s;
+        }
+
+        #puck:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+            background: #ff5722;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #66b2ff;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #0070cc;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        #playBtn {
+            background: #0070cc;
+            color: white;
+        }
+
+        #playBtn.playing {
+            background: #e53935;
+        }
+
+        #recordBtn {
+            background: #555;
+            color: white;
+        }
+
+        #recordBtn.recording {
+            background: #ff9800;
+            animation: pulse 1s infinite;
+            color: black;
+        }
+
+        .desc {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-top: 5px;
+            line-height: 1.3;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* AI生成パネル */
+        .ai-panel {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #0070cc;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 112, 204, 0.15);
+        }
+
+        .ai-panel h2 {
+            font-size: 1rem;
+            color: #66b2ff;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-panel input[type="password"],
+        .ai-panel input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #1a1a1a;
+            color: #f0f0f0;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        .ai-panel input:focus {
+            outline: none;
+            border-color: #0070cc;
+            box-shadow: 0 0 0 2px rgba(0, 112, 204, 0.25);
+        }
+
+        #generateBtn {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #0070cc, #00439c);
+            color: white;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #generateBtn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #0088ff, #0060dd);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 112, 204, 0.4);
+        }
+
+        #generateBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #aiStatus {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            min-height: 1.2em;
+            transition: color 0.3s;
+        }
+
+        #aiStatus.loading {
+            color: #ff9800;
+        }
+
+        #aiStatus.success {
+            color: #4caf50;
+        }
+
+        #aiStatus.error {
+            color: #e53935;
+        }
+    </style>
 </head>
+
 <body>
 
-  <h1>インタラクティブ 触覚デザインツール</h1>
+    <h1>インタラクティブ 触覚デザインツール</h1>
 
-  <div id="touchPad">
-      <div id="puck">Drag Me!</div>
-  </div>
+    <div class="ai-panel">
+        <h2>🤖 AI 質感ジェネレーター</h2>
+        <input type="password" id="apiKey" placeholder="Gemini API Key を入力">
+        <input type="text" id="aiPrompt" placeholder="例: ザラザラしたアスファルト, 氷の上を滑る感覚">
+        <button id="generateBtn">AIで質感を生成</button>
+        <div id="aiStatus"></div>
+    </div>
 
-  <div class="control-group">
-    <label><span>粒感 (滑らか 0)</span> <span>粒感 (ツブツブ 1)</span></label>
-    <input type="range" id="granularity" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">VCA特有の鋭いインパルス（衝撃）。波形の頂点を針のように鋭くし、砂や小石のような独立した粒の感覚を作ります。</div>
-  </div>
+    <div id="touchPad">
+        <div id="puck">Drag Me!</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>すべすべ (0)</span> <span>ザラザラ (1)</span></label>
-    <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.2">
-    <div class="desc">fBmによる微細な高周波ノイズの付加。ガラスのような滑らかさから、ヤスリのような質感まで。</div>
-  </div>
-  
-  <div class="control-group">
-    <label><span>液体 (0)</span> <span>固体 (1)</span></label>
-    <input type="range" id="state" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">連続的か、断続的か。固体に近づくと波形がビットクラッシュ（階段状）になり、ゴリゴリとした摩擦を生みます。</div>
-  </div>
+    <div class="control-group">
+        <label><span>粒感 (滑らか 0)</span> <span>粒感 (ツブツブ 1)</span></label>
+        <input type="range" id="granularity" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">VCA特有の鋭いインパルス（衝撃）。波形の頂点を針のように鋭くし、砂や小石のような独立した粒の感覚を作ります。</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>柔らかい (0)</span> <span>硬い (1)</span></label>
-    <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">衝撃の硬さ。ウェーブフォルダーによる波の「折り返し」で、金属的なカンッという硬い感触を加えます。</div>
-  </div>
+    <div class="control-group">
+        <label><span>すべすべ (0)</span> <span>ザラザラ (1)</span></label>
+        <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.2">
+        <div class="desc">fBmによる微細な高周波ノイズの付加。ガラスのような滑らかさから、ヤスリのような質感まで。</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>重い (0)</span> <span>軽い (1)</span></label>
-    <input type="range" id="weight" min="0" max="1" step="0.01" value="0.5">
-    <div class="desc">ベース周波数。重い＝20Hz付近のズンッとした重低音振動、軽い＝150Hz付近のチリチリした軽い振動。</div>
-  </div>
+    <div class="control-group">
+        <label><span>液体 (0)</span> <span>固体 (1)</span></label>
+        <input type="range" id="state" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">連続的か、断続的か。固体に近づくと波形がビットクラッシュ（階段状）になり、ゴリゴリとした摩擦を生みます。</div>
+    </div>
 
-  <div class="control-group">
-    <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
-    <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.0">
-    <div class="desc">引きずり抵抗。泥やスライムをかき混ぜるような抵抗感をシミュレート。</div>
-  </div>
+    <div class="control-group">
+        <label><span>柔らかい (0)</span> <span>硬い (1)</span></label>
+        <input type="range" id="hardness" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">衝撃の硬さ。ウェーブフォルダーによる波の「折り返し」で、金属的なカンッという硬い感触を加えます。</div>
+    </div>
 
-  <div class="buttons">
-    <button id="playBtn">Play / エンジン起動</button>
-    <button id="recordBtn" disabled>Record / 録音 (WAV)</button>
-  </div>
+    <div class="control-group">
+        <label><span>重い (0)</span> <span>軽い (1)</span></label>
+        <input type="range" id="weight" min="0" max="1" step="0.01" value="0.5">
+        <div class="desc">ベース周波数。重い＝20Hz付近のズンッとした重低音振動、軽い＝150Hz付近のチリチリした軽い振動。</div>
+    </div>
 
-  <script>
-    // --- ドラッグ操作と物理演算のロジック ---
-    const puck = document.getElementById('puck');
-    const touchPad = document.getElementById('touchPad');
-    let isDragging = false;
-    let lastX = 0, lastY = 0, lastTime = 0;
-    
-    // 音声エンジンに渡すための動的パラメータ
-    let rawVelocity = 0;
-    let smoothedVelocity = 0;
+    <div class="control-group">
+        <label><span>サラサラ (0)</span> <span>ネバネバ (1)</span></label>
+        <input type="range" id="viscosity" min="0" max="1" step="0.01" value="0.0">
+        <div class="desc">引きずり抵抗。泥やスライムをかき混ぜるような抵抗感をシミュレート。</div>
+    </div>
 
-    function startDrag(clientX, clientY) {
-        isDragging = true;
-        lastX = clientX;
-        lastY = clientY;
-        lastTime = performance.now();
-    }
+    <div class="buttons">
+        <button id="playBtn">Play / エンジン起動</button>
+        <button id="recordBtn" disabled>Record / 録音 (WAV)</button>
+    </div>
 
-    function moveDrag(clientX, clientY) {
-        if (!isDragging) return;
-        
-        const now = performance.now();
-        const dt = now - lastTime;
-        
-        if (dt > 0) {
-            // 移動距離から速度を計算
-            const dx = clientX - lastX;
-            const dy = clientY - lastY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            // ピクセル/ミリ秒 を 0.0 ~ 5.0 程度のスケールにマッピング
-            rawVelocity = Math.min((dist / dt) * 1.5, 5.0);
+    <script>
+        // --- ドラッグ操作と物理演算のロジック ---
+        const puck = document.getElementById('puck');
+        const touchPad = document.getElementById('touchPad');
+        let isDragging = false;
+        let lastX = 0, lastY = 0, lastTime = 0;
+
+        // 音声エンジンに渡すための動的パラメータ
+        let rawVelocity = 0;
+        let smoothedVelocity = 0;
+
+        function startDrag(clientX, clientY) {
+            isDragging = true;
+            lastX = clientX;
+            lastY = clientY;
+            lastTime = performance.now();
         }
 
-        lastX = clientX;
-        lastY = clientY;
-        lastTime = now;
+        function moveDrag(clientX, clientY) {
+            if (!isDragging) return;
 
-        // 見た目のオブジェクトをカーソルに追従させる
-        const rect = touchPad.getBoundingClientRect();
-        let px = clientX - rect.left - 40; // 40はpuckの半径
-        let py = clientY - rect.top - 40;
-        px = Math.max(0, Math.min(px, rect.width - 80));
-        py = Math.max(0, Math.min(py, rect.height - 80));
-        puck.style.left = px + 'px';
-        puck.style.top = py + 'px';
-    }
+            const now = performance.now();
+            const dt = now - lastTime;
 
-    function endDrag() {
-        isDragging = false;
-    }
+            if (dt > 0) {
+                // 移動距離から速度を計算
+                const dx = clientX - lastX;
+                const dy = clientY - lastY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // マウスイベント
-    puck.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
-    window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
-    window.addEventListener('mouseup', endDrag);
-
-    // タッチイベント（スマホ・タブレット用）
-    puck.addEventListener('touchstart', e => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
-    window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
-    window.addEventListener('touchend', endDrag);
-
-    // 物理演算ループ（速度の減衰と平滑化）
-    function updatePhysics() {
-        if (!isDragging || (performance.now() - lastTime > 50)) {
-            // マウスが止まった、あるいは離した場合は速度を減衰
-            rawVelocity *= 0.7; 
-        }
-        // 音声にノイズが乗らないように速度変化を滑らかにする
-        smoothedVelocity += (rawVelocity - smoothedVelocity) * 0.2;
-        requestAnimationFrame(updatePhysics);
-    }
-    updatePhysics();
-
-
-    // --- 音響/触覚生成エンジン (ScriptProcessor) ---
-    function hash(n) { return (Math.sin(n) * 43758.5453123) % 1; }
-    function noise(x) {
-        const p = Math.floor(x);
-        const f = x - p;
-        const u = f * f * (3.0 - 2.0 * f);
-        return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0;
-    }
-
-    let audioCtx;
-    let scriptNode;
-    let isPlaying = false;
-    let mediaRecorder, chunks = [];
-    let phase = 0;
-
-    async function initAudio() {
-        if (audioCtx) return;
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        const dest = audioCtx.createMediaStreamDestination();
-        mediaRecorder = new MediaRecorder(dest.stream);
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = e => {
-            const outBlob = new Blob(chunks, { type: 'audio/wav' });
-            chunks = [];
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(outBlob);
-            a.download = 'dualsense_haptics.wav';
-            a.click();
-        };
-        
-        document.getElementById('recordBtn').disabled = false;
-
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = 0;
-        
-        scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
-        
-        scriptNode.onaudioprocess = function(audioProcessingEvent) {
-            const output = audioProcessingEvent.outputBuffer.getChannelData(0);
-            const sampleRate = audioCtx.sampleRate;
-
-            const val = id => parseFloat(document.getElementById(id).value);
-            const granularity = val('granularity');
-            const roughness = val('roughness');
-            const state = val('state');
-            const hardness = val('hardness');
-            const weight = val('weight');
-            const viscosity = val('viscosity');
-
-            // ドラッグによる動的ベロシティを取得
-            let currentVel = smoothedVelocity;
-            
-            // 動いていない時は振動を完全に止めるためのゲイン（音量）エンベロープ
-            let movementGain = Math.min(currentVel * 1.5, 1.0);
-
-            for (let i = 0; i < output.length; i++) {
-                const baseFreq = 20 + (weight * 160); 
-                const drag = viscosity > 0 ? (noise(phase * 0.1) * viscosity * 0.8) : 0;
-                
-                // オブジェクトが早く動くほど、ノイズ空間を早く進む（位相の更新幅が大きくなる）
-                // 速度が0の場合は位相が進まない＝振動のテクスチャが停止する
-                let scrollSpeed = Math.max(currentVel, 0.01);
-                phase += (baseFreq * scrollSpeed * (1 - drag)) / sampleRate;
-
-                let hapticVal = 0;
-                let amp = 1.0;
-                let freq = 1.0;
-                let maxAmp = 0;
-
-                for (let oct = 0; oct < 5; oct++) {
-                    hapticVal += noise(phase * freq) * amp;
-                    maxAmp += amp;
-                    amp *= roughness;
-                    freq *= 2.1; 
-                }
-                hapticVal /= maxAmp;
-
-                if (granularity > 0) {
-                    let absVal = Math.abs(hapticVal);
-                    let sign = Math.sign(hapticVal);
-                    let power = 1.0 + (granularity * 30.0); 
-                    hapticVal = sign * Math.pow(absVal, power);
-                    hapticVal *= (1.0 + granularity * 1.5); 
-                }
-
-                if (state > 0) {
-                    const steps = 1.0 + (1.0 - state) * 15.0;
-                    hapticVal = Math.round(hapticVal * steps) / steps;
-                }
-
-                if (hardness > 0) {
-                    const threshold = 1.0 - (hardness * 0.7);
-                    if (hapticVal > threshold) {
-                        hapticVal = threshold - (hapticVal - threshold);
-                    } else if (hapticVal < -threshold) {
-                        hapticVal = -threshold - (hapticVal + threshold);
-                    }
-                    hapticVal *= (1.0 + hardness * 1.2);
-                }
-
-                if (hapticVal > 1.0) hapticVal = 1.0;
-                if (hapticVal < -1.0) hapticVal = -1.0;
-
-                // 基礎の重さゲインに、手の動き（movementGain）を乗算する
-                const finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain;
-                output[i] = hapticVal * finalGain;
+                // ピクセル/ミリ秒 を 0.0 ~ 5.0 程度のスケールにマッピング
+                rawVelocity = Math.min((dist / dt) * 1.5, 5.0);
             }
-        };
 
-        scriptNode.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        gainNode.connect(dest);
+            lastX = clientX;
+            lastY = clientY;
+            lastTime = now;
 
-        window.masterGain = gainNode;
-    }
-
-    async function togglePlay() {
-        if (!audioCtx) await initAudio();
-
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
+            // 見た目のオブジェクトをカーソルに追従させる
+            const rect = touchPad.getBoundingClientRect();
+            let px = clientX - rect.left - 40; // 40はpuckの半径
+            let py = clientY - rect.top - 40;
+            px = Math.max(0, Math.min(px, rect.width - 80));
+            py = Math.max(0, Math.min(py, rect.height - 80));
+            puck.style.left = px + 'px';
+            puck.style.top = py + 'px';
         }
 
-        if (isPlaying) {
-            window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
-            document.getElementById('playBtn').textContent = 'Play / エンジン起動';
-            document.getElementById('playBtn').classList.remove('playing');
-        } else {
-            // エンジン起動後は、マウスの動き（movementGain）で音量が制御される
-            window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.05);
-            document.getElementById('playBtn').textContent = 'Stop / 停止';
-            document.getElementById('playBtn').classList.add('playing');
+        function endDrag() {
+            isDragging = false;
         }
-        isPlaying = !isPlaying;
-    }
 
-    document.getElementById('playBtn').addEventListener('click', togglePlay);
+        // マウスイベント
+        puck.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+        window.addEventListener('mouseup', endDrag);
 
-    const recordBtn = document.getElementById('recordBtn');
-    recordBtn.addEventListener('click', () => {
-        if (mediaRecorder.state === 'inactive') {
-            mediaRecorder.start();
-            recordBtn.textContent = 'Stop Recording';
-            recordBtn.classList.add('recording');
-        } else {
-            mediaRecorder.stop();
-            recordBtn.textContent = 'Record / 録音 (WAV)';
-            recordBtn.classList.remove('recording');
+        // タッチイベント（スマホ・タブレット用）
+        puck.addEventListener('touchstart', e => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX, e.touches[0].clientY), { passive: false });
+        window.addEventListener('touchend', endDrag);
+
+        // 物理演算ループ（速度の減衰と平滑化）
+        function updatePhysics() {
+            if (!isDragging || (performance.now() - lastTime > 50)) {
+                // マウスが止まった、あるいは離した場合は速度を減衰
+                rawVelocity *= 0.7;
+            }
+            // 音声にノイズが乗らないように速度変化を滑らかにする
+            smoothedVelocity += (rawVelocity - smoothedVelocity) * 0.2;
+            requestAnimationFrame(updatePhysics);
         }
-    });
-  </script>
+        updatePhysics();
+
+
+        // --- 音響/触覚生成エンジン (ScriptProcessor) ---
+        function hash(n) { return (Math.sin(n) * 43758.5453123) % 1; }
+        function noise(x) {
+            const p = Math.floor(x);
+            const f = x - p;
+            const u = f * f * (3.0 - 2.0 * f);
+            return (hash(p) * (1.0 - u) + hash(p + 1.0) * u) * 2.0 - 1.0;
+        }
+
+        let audioCtx;
+        let scriptNode;
+        let isPlaying = false;
+        let mediaRecorder, chunks = [];
+        let phase = 0;
+
+        async function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            const dest = audioCtx.createMediaStreamDestination();
+            mediaRecorder = new MediaRecorder(dest.stream);
+            mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            mediaRecorder.onstop = e => {
+                const outBlob = new Blob(chunks, { type: 'audio/wav' });
+                chunks = [];
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(outBlob);
+                a.download = 'dualsense_haptics.wav';
+                a.click();
+            };
+
+            document.getElementById('recordBtn').disabled = false;
+
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.value = 0;
+
+            scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+
+            scriptNode.onaudioprocess = function (audioProcessingEvent) {
+                const output = audioProcessingEvent.outputBuffer.getChannelData(0);
+                const sampleRate = audioCtx.sampleRate;
+
+                const val = id => parseFloat(document.getElementById(id).value);
+                const granularity = val('granularity');
+                const roughness = val('roughness');
+                const state = val('state');
+                const hardness = val('hardness');
+                const weight = val('weight');
+                const viscosity = val('viscosity');
+
+                // ドラッグによる動的ベロシティを取得
+                let currentVel = smoothedVelocity;
+
+                // 動いていない時は振動を完全に止めるためのゲイン（音量）エンベロープ
+                let movementGain = Math.min(currentVel * 1.5, 1.0);
+
+                for (let i = 0; i < output.length; i++) {
+                    const baseFreq = 20 + (weight * 160);
+                    const drag = viscosity > 0 ? (noise(phase * 0.1) * viscosity * 0.8) : 0;
+
+                    // オブジェクトが早く動くほど、ノイズ空間を早く進む（位相の更新幅が大きくなる）
+                    // 速度が0の場合は位相が進まない＝振動のテクスチャが停止する
+                    let scrollSpeed = Math.max(currentVel, 0.01);
+                    phase += (baseFreq * scrollSpeed * (1 - drag)) / sampleRate;
+
+                    let hapticVal = 0;
+                    let amp = 1.0;
+                    let freq = 1.0;
+                    let maxAmp = 0;
+
+                    for (let oct = 0; oct < 5; oct++) {
+                        hapticVal += noise(phase * freq) * amp;
+                        maxAmp += amp;
+                        amp *= roughness;
+                        freq *= 2.1;
+                    }
+                    hapticVal /= maxAmp;
+
+                    if (granularity > 0) {
+                        let absVal = Math.abs(hapticVal);
+                        let sign = Math.sign(hapticVal);
+                        let power = 1.0 + (granularity * 30.0);
+                        hapticVal = sign * Math.pow(absVal, power);
+                        hapticVal *= (1.0 + granularity * 1.5);
+                    }
+
+                    if (state > 0) {
+                        const steps = 1.0 + (1.0 - state) * 15.0;
+                        hapticVal = Math.round(hapticVal * steps) / steps;
+                    }
+
+                    if (hardness > 0) {
+                        const threshold = 1.0 - (hardness * 0.7);
+                        if (hapticVal > threshold) {
+                            hapticVal = threshold - (hapticVal - threshold);
+                        } else if (hapticVal < -threshold) {
+                            hapticVal = -threshold - (hapticVal + threshold);
+                        }
+                        hapticVal *= (1.0 + hardness * 1.2);
+                    }
+
+                    if (hapticVal > 1.0) hapticVal = 1.0;
+                    if (hapticVal < -1.0) hapticVal = -1.0;
+
+                    // 基礎の重さゲインに、手の動き（movementGain）を乗算する
+                    const finalGain = (0.5 + ((1.0 - weight) * 0.5)) * movementGain;
+                    output[i] = hapticVal * finalGain;
+                }
+            };
+
+            scriptNode.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            gainNode.connect(dest);
+
+            window.masterGain = gainNode;
+        }
+
+        async function togglePlay() {
+            if (!audioCtx) await initAudio();
+
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+
+            if (isPlaying) {
+                window.masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+                document.getElementById('playBtn').textContent = 'Play / エンジン起動';
+                document.getElementById('playBtn').classList.remove('playing');
+            } else {
+                // エンジン起動後は、マウスの動き（movementGain）で音量が制御される
+                window.masterGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.05);
+                document.getElementById('playBtn').textContent = 'Stop / 停止';
+                document.getElementById('playBtn').classList.add('playing');
+            }
+            isPlaying = !isPlaying;
+        }
+
+        document.getElementById('playBtn').addEventListener('click', togglePlay);
+
+        const recordBtn = document.getElementById('recordBtn');
+        recordBtn.addEventListener('click', () => {
+            if (mediaRecorder.state === 'inactive') {
+                mediaRecorder.start();
+                recordBtn.textContent = 'Stop Recording';
+                recordBtn.classList.add('recording');
+            } else {
+                mediaRecorder.stop();
+                recordBtn.textContent = 'Record / 録音 (WAV)';
+                recordBtn.classList.remove('recording');
+            }
+        });
+
+        // --- AI質感生成 (Gemini API) ---
+        const generateBtn = document.getElementById('generateBtn');
+        const aiStatus = document.getElementById('aiStatus');
+        const PARAM_KEYS = ['granularity', 'roughness', 'state', 'hardness', 'weight', 'viscosity'];
+
+        function setStatus(msg, cls) {
+            aiStatus.textContent = msg;
+            aiStatus.className = cls || '';
+        }
+
+        function applyParams(params) {
+            PARAM_KEYS.forEach(key => {
+                const val = parseFloat(params[key]);
+                if (isNaN(val)) return;
+                const clamped = Math.max(0, Math.min(1, val));
+                const slider = document.getElementById(key);
+                slider.value = clamped;
+                slider.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const prompt = document.getElementById('aiPrompt').value.trim();
+
+            if (!apiKey) { setStatus('⚠ APIキーを入力してください。', 'error'); return; }
+            if (!prompt) { setStatus('⚠ 質感のイメージを入力してください。', 'error'); return; }
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = '⏳ 生成中...';
+            setStatus('Gemini APIに問い合わせています...', 'loading');
+
+            const systemInstruction = `あなたはプロのハプティクス（触覚）デザイナーです。ユーザーの入力した「触覚のイメージ」を分析し、以下の6つのパラメータ（0.0〜1.0の浮動小数点数）に変換して出力してください。
+- granularity: 滑らか(0.0) 〜 ツブツブのインパルス(1.0)
+- roughness: すべすべ(0.0) 〜 微細なザラザラノイズ(1.0)
+- state: 液体・連続(0.0) 〜 固体・不連続な摩擦(1.0)
+- hardness: 柔らかい(0.0) 〜 金属的に硬い(1.0)
+- weight: 重い・低音(0.0) 〜 軽い・高音(1.0)
+- viscosity: サラサラ(0.0) 〜 泥のようなネバネバ(1.0)
+必ず上記6つのキーだけを持つJSONオブジェクトのみを返してください。`;
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: systemInstruction }] },
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
+                                type: 'OBJECT',
+                                properties: {
+                                    granularity: { type: 'NUMBER' },
+                                    roughness: { type: 'NUMBER' },
+                                    state: { type: 'NUMBER' },
+                                    hardness: { type: 'NUMBER' },
+                                    weight: { type: 'NUMBER' },
+                                    viscosity: { type: 'NUMBER' }
+                                },
+                                required: PARAM_KEYS
+                            }
+                        }
+                    })
+                });
+
+                if (!res.ok) {
+                    const errBody = await res.text();
+                    throw new Error(`API Error ${res.status}: ${errBody.slice(0, 200)}`);
+                }
+
+                const data = await res.json();
+                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error('APIレスポンスにテキストが含まれていません。');
+
+                const params = JSON.parse(text);
+                const missing = PARAM_KEYS.filter(k => params[k] === undefined);
+                if (missing.length > 0) throw new Error(`パラメータが不足: ${missing.join(', ')}`);
+
+                applyParams(params);
+                setStatus(`✅ 質感を適用しました: 「${prompt}」`, 'success');
+            } catch (err) {
+                console.error('Gemini API Error:', err);
+                setStatus(`❌ エラー: ${err.message}`, 'error');
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'AIで質感を生成';
+            }
+        });
+    </script>
 </body>
+
 </html>
